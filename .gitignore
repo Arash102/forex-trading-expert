@@ -16,3 +16,11 @@ data/models/
 data/reports/
 live_logs/
 *.log
+configs/*.local.json
+data/
+models/
+reports/
+logs/
+*.pkl
+*.joblib
+*.sqlite
