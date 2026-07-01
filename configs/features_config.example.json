@@ -1,0 +1,20 @@
+{
+  "input_dir": "data/raw",
+  "output_dir": "data/features",
+  "symbols": ["EURUSD", "XAUUSD"],
+  "pip_size": {
+    "EURUSD": 0.0001,
+    "XAUUSD": 0.01
+  },
+  "features": {
+    "rsi_period": 14,
+    "atr_period": 14,
+    "atr_regime_lookback": 240,
+    "gmma_short_periods": [3, 5, 8, 10, 12, 15],
+    "gmma_long_periods": [30, 35, 40, 45, 50, 60],
+    "market_window": 20,
+    "market_momentum_lag": 20,
+    "zigzag_depth": 10,
+    "session_volatility_lookback": 240
+  }
+}

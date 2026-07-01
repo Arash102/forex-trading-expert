@@ -1,0 +1,24 @@
+{
+  "dataset_path": "data/features/EURUSD_features.csv",
+  "signal_source": "ml_probability",
+  "probability_threshold": 0.58,
+  "side": "long",
+  "risk": {
+    "max_trades_per_day": 3,
+    "target_min_daily_opportunity": 1,
+    "allow_no_trade_if_no_valid_signal": true,
+    "cooldown_bars": 4,
+    "risk_per_trade_pct": 2.0,
+    "daily_loss_stop_r": -2.0,
+    "daily_profit_stop_r": 3.0
+  },
+  "execution": {
+    "entry": "next_bar_open",
+    "take_profit_pips": 20,
+    "stop_loss_pips": 10,
+    "max_hold_bars": 24,
+    "same_bar_policy": "sl_first",
+    "commission_pips": 0.0,
+    "extra_cost_pips": 0.0
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "timezone": "UTC",
+  "timeframe": "M15",
+  "bars": 30000,
+  "output_dir": "data/raw",
+  "symbols": {
+    "EURUSD": {"broker_symbol": "EURUSD", "enabled": true},
+    "XAUUSD": {"broker_symbol": "XAUUSD", "enabled": true}
+  },
+  "dxy_components": {
+    "EURUSD": {"broker_symbol": "EURUSD", "weight": -0.576},
+    "USDJPY": {"broker_symbol": "USDJPY", "weight": 0.136},
+    "GBPUSD": {"broker_symbol": "GBPUSD", "weight": -0.119},
+    "USDCAD": {"broker_symbol": "USDCAD", "weight": 0.091},
+    "USDSEK": {"broker_symbol": "USDSEK", "weight": 0.042},
+    "USDCHF": {"broker_symbol": "USDCHF", "weight": 0.036}
+  },
+  "dxy_constant": 50.14348112,
+  "save_merged_per_symbol": true
+}

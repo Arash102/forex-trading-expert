@@ -1,0 +1,63 @@
+{
+  "dataset_path": "data/features/EURUSD_features.csv",
+  "target": {
+    "method": "triple_barrier",
+    "take_profit_pips": 20,
+    "stop_loss_pips": 10,
+    "horizon_bars": 24,
+    "side": "long",
+    "same_bar_policy": "sl_first"
+  },
+  "features": {
+    "include": [
+      "market_x",
+      "market_y",
+      "market_regime",
+      "atr_regime",
+      "rsi",
+      "gmma_distance",
+      "gmma_distance_slope",
+      "session_block_id",
+      "distance_from_asia_high_pips",
+      "distance_from_asia_low_pips",
+      "london_expansion_vs_asia",
+      "day_return_from_open_pips"
+    ],
+    "exclude": ["date", "open", "high", "low", "close", "tick_volume", "spread"]
+  },
+  "model": {
+    "type": "xgboost_classifier",
+    "random_state": 42,
+    "optuna_trials": 50,
+    "search_space": {
+      "max_depth": [2, 6],
+      "learning_rate": [0.01, 0.15],
+      "n_estimators": [100, 800],
+      "subsample": [0.5, 1.0],
+      "colsample_bytree": [0.5, 1.0],
+      "min_child_weight": [1, 20],
+      "gamma": [0.0, 5.0],
+      "reg_alpha": [0.0, 10.0],
+      "reg_lambda": [0.1, 20.0]
+    }
+  },
+  "validation": {
+    "method": "walk_forward",
+    "train_bars": 8000,
+    "test_bars": 1000,
+    "step_bars": 1000,
+    "purge_bars": 24,
+    "embargo_bars": 0,
+    "cpcv": {
+      "n_groups": 10,
+      "k_test_groups": 2,
+      "purge_bars": 24,
+      "embargo_pct": 0.01
+    }
+  },
+  "metrics": {
+    "primary": "profit_factor_proxy",
+    "classification": ["precision", "recall", "specificity", "roc_auc", "f1"],
+    "trading_proxy": ["win_rate", "payoff", "profit_factor_proxy"]
+  }
+}

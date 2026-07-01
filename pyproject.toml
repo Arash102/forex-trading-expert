@@ -1,0 +1,11 @@
+[project]
+name = "debco-research-engine"
+version = "0.1.0"
+description = "Python-first research and MT5 execution engine for EURUSD/XAUUSD"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
