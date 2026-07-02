@@ -1,20 +1,92 @@
 {
   "input_dir": "data/raw",
   "output_dir": "data/features",
-  "symbols": ["EURUSD", "XAUUSD"],
+  "symbols": [
+    "EURUSD",
+    "XAUUSD"
+  ],
   "pip_size": {
     "EURUSD": 0.0001,
     "XAUUSD": 0.01
   },
-  "features": {
-    "rsi_period": 14,
-    "atr_period": 14,
-    "atr_regime_lookback": 240,
-    "gmma_short_periods": [3, 5, 8, 10, 12, 15],
-    "gmma_long_periods": [30, 35, 40, 45, 50, 60],
-    "market_window": 20,
-    "market_momentum_lag": 20,
+  "sessions": {
+    "timezone": "UTC",
+    "definitions": {
+      "tokyo": {
+        "start": "00:00",
+        "end": "09:00"
+      },
+      "london": {
+        "start": "07:00",
+        "end": "16:00"
+      },
+      "new_york": {
+        "start": "12:00",
+        "end": "21:00"
+      }
+    }
+  },
+  "feature_engineering": {
     "zigzag_depth": 10,
-    "session_volatility_lookback": 240
+    "zigzag_deviation_pct": 0.3,
+    "fracdiff_order": 0.4,
+    "fracdiff_window": 50,
+    "atr_period": 14,
+    "rsi_period": 14,
+    "rsi_slope_window": 5,
+    "volume_ratio_window": 30,
+    "value_ratio_window": 30,
+    "gmma_short_spans": [
+      3,
+      5,
+      8,
+      10,
+      12,
+      15
+    ],
+    "gmma_long_spans": [
+      30,
+      35,
+      40,
+      45,
+      50,
+      60
+    ],
+    "gmma_normalize_window": 30,
+    "gmma_distance_slope_window": 5,
+    "market_rs_window_short": 20,
+    "market_rs_window_long": 60,
+    "market_momentum_lag": 20,
+    "market_z_window": 20,
+    "market_regime_vol_window": 120,
+    "market_regime_vol_quantile": 0.85
+  },
+  "sanity": {
+    "essential_columns": [
+      "dxy_close",
+      "dxy_inverse_close",
+      "index_close",
+      "market_x",
+      "market_y",
+      "market_regime",
+      "session_block_id",
+      "day_of_week",
+      "hour_of_day",
+      "rsi",
+      "atr_14_pips",
+      "atr_regime",
+      "gmma_distance",
+      "gmma_distance_slope",
+      "gmma",
+      "body_ratio",
+      "h1_trend_direction",
+      "distance_from_asia_high_pips",
+      "distance_from_asia_low_pips",
+      "london_expansion_vs_asia",
+      "session_volatility_percentile_240",
+      "distance_from_confirmed_zigzag_high_pips",
+      "distance_from_confirmed_zigzag_low_pips",
+      "day_return_from_open_pips"
+    ]
   }
 }
