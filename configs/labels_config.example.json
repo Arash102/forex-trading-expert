@@ -1,0 +1,104 @@
+{
+  "input": {
+    "features_dir": "data/features/model",
+    "file_template": "{symbol}_features_model.csv"
+  },
+  "output": {
+    "labels_dir": "data/labels",
+    "file_template": "{symbol}_{profile}_labels_{side}.csv",
+    "write_joined_dataset": false,
+    "joined_file_template": "{symbol}_{profile}_dataset_{side}.csv",
+    "write_ml_ready_dataset": true,
+    "ml_ready_dir": "data/ml_ready",
+    "ml_ready_file_template": "{symbol}_{profile}_ml_ready_{side}.csv",
+    "ml_target_column": "label",
+    "dropna_ml_ready": false,
+    "write_label_metadata": true,
+    "metadata_dir": "data/label_metadata",
+    "metadata_file_template": "{symbol}_{profile}_metadata_{side}.csv"
+  },
+  "labeling": {
+    "mode": "trade_outcome_binary",
+    "entry_offset_bars": 1,
+    "entry_price_column": "open",
+    "exit_price_column": "close",
+    "high_column": "high",
+    "low_column": "low",
+    "same_bar_policy": "sl_first",
+    "vertical_label_policy": "zero",
+    "drop_no_entry_rows": true,
+    "build_profiles": "all"
+  },
+  "symbols": {
+    "EURUSD": {
+      "enabled": true,
+      "pip_size": 0.0001,
+      "sides": [
+        "long",
+        "short"
+      ],
+      "primary_profile": "runner_20_10_h24",
+      "profiles": {
+        "runner_20_10_h24": {
+          "tp_pips": 20,
+          "sl_pips": 10,
+          "max_horizon_bars": 24,
+          "barrier_cost_pips": 0.0
+        },
+        "fast_15_8_h16": {
+          "tp_pips": 15,
+          "sl_pips": 8,
+          "max_horizon_bars": 16,
+          "barrier_cost_pips": 0.0
+        }
+      }
+    },
+    "XAUUSD": {
+      "enabled": true,
+      "pip_size": 0.01,
+      "sides": [
+        "long",
+        "short"
+      ],
+      "primary_profile": "runner_2200_1100_h40",
+      "profiles": {
+        "runner_2200_1100_h40": {
+          "tp_pips": 2200,
+          "sl_pips": 1100,
+          "max_horizon_bars": 40,
+          "barrier_cost_pips": 0.0
+        },
+        "active_1500_800_h32": {
+          "tp_pips": 1500,
+          "sl_pips": 800,
+          "max_horizon_bars": 32,
+          "barrier_cost_pips": 0.0
+        }
+      }
+    }
+  },
+  "sanity": {
+    "min_positive_ratio": 0.01,
+    "max_same_bar_ratio": 0.05,
+    "required_label_columns": [
+      "date",
+      "symbol",
+      "profile",
+      "side",
+      "target_name",
+      "label",
+      "outcome_label",
+      "event_type",
+      "entry_date",
+      "exit_date",
+      "entry_price",
+      "exit_price",
+      "tp_pips",
+      "sl_pips",
+      "max_horizon_bars",
+      "realized_pips",
+      "mfe_pips",
+      "mae_pips"
+    ]
+  }
+}
