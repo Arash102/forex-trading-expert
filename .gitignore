@@ -6,6 +6,7 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
+forex_trade/
 
 # generated data
 artifacts/
@@ -15,3 +16,11 @@ data/models/
 data/reports/
 live_logs/
 *.log
+configs/*.local.json
+data/
+models/
+reports/
+logs/
+*.pkl
+*.joblib
+*.sqlite
