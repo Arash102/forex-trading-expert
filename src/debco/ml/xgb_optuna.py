@@ -12,6 +12,7 @@ from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
     balanced_accuracy_score,
+    brier_score_loss,
     confusion_matrix,
     f1_score,
     log_loss,
@@ -21,8 +22,11 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
+from debco.ml.calibration import calibration_metrics, fit_probability_calibrator
+from debco.ml.candidates import apply_candidate_filter
+from debco.ml.thresholding import threshold_sweep_from_predictions
 from debco.validation.cpcv import make_cpcv_splits
-from debco.validation.walk_forward import ValidationFold, make_walk_forward_splits
+from debco.validation.walk_forward import make_walk_forward_splits
 
 
 @dataclass(frozen=True)
@@ -41,13 +45,7 @@ def enabled_jobs(config: Mapping[str, Any]) -> list[TrainingJob]:
     for item in config.get("jobs", []):
         if not bool(item.get("enabled", False)):
             continue
-        out.append(
-            TrainingJob(
-                symbol=str(item["symbol"]),
-                profile=str(item["profile"]),
-                side=str(item["side"]),
-            )
-        )
+        out.append(TrainingJob(symbol=str(item["symbol"]), profile=str(item["profile"]), side=str(item["side"])))
     return out
 
 
@@ -68,7 +66,9 @@ def load_job_frames(config: Mapping[str, Any], job: TrainingJob) -> tuple[pd.Dat
     if not meta_path.exists():
         raise FileNotFoundError(f"Metadata file not found: {meta_path}")
     ml = pd.read_csv(ml_path)
-    meta = pd.read_csv(meta_path, parse_dates=[c for c in ["date", "entry_date", "exit_date"] if c in pd.read_csv(meta_path, nrows=0).columns])
+    meta_header = pd.read_csv(meta_path, nrows=0)
+    date_cols = [c for c in ["date", "entry_date", "exit_date"] if c in meta_header.columns]
+    meta = pd.read_csv(meta_path, parse_dates=date_cols)
     if len(ml) != len(meta):
         raise ValueError(f"ML-ready and metadata row counts differ for {job.name}: {len(ml)} vs {len(meta)}")
     return ml, meta
@@ -108,6 +108,7 @@ def build_validation_folds(config: Mapping[str, Any], metadata: pd.DataFrame) ->
             step_bars=int(wf.get("step_bars", wf.get("test_window_bars", 2000))),
             expanding=bool(wf.get("expanding", False)),
             min_train_bars=int(wf.get("min_train_bars", wf.get("train_window_bars", 12000))),
+            purge_bars=int(wf.get("purge_bars", 0)),
         )
     if method == "cpcv":
         cpcv = val.get("cpcv", {})
@@ -134,8 +135,7 @@ def binary_classification_metrics(y_true: np.ndarray, proba: np.ndarray, *, thre
     y_true = np.asarray(y_true, dtype=int)
     proba = np.asarray(proba, dtype=float)
     y_pred = (proba >= float(threshold)).astype(int)
-    labels = [0, 1]
-    cm = confusion_matrix(y_true, y_pred, labels=labels)
+    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
     tn, fp, fn, tp = cm.ravel()
     specificity = float(tn / (tn + fp)) if (tn + fp) else np.nan
     out = {
@@ -153,6 +153,7 @@ def binary_classification_metrics(y_true: np.ndarray, proba: np.ndarray, *, thre
         "roc_auc": _safe_metric(lambda: roc_auc_score(y_true, proba)),
         "average_precision": _safe_metric(lambda: average_precision_score(y_true, proba)),
         "log_loss": _safe_metric(lambda: log_loss(y_true, np.clip(proba, 1e-6, 1 - 1e-6), labels=[0, 1])),
+        "brier_score": _safe_metric(lambda: brier_score_loss(y_true, np.clip(proba, 1e-6, 1 - 1e-6))),
         "tn": float(tn),
         "fp": float(fp),
         "fn": float(fn),
@@ -165,9 +166,6 @@ def _suggest_param(trial: Any, name: str, bounds: list[Any]) -> Any:
     lo, hi = bounds
     if isinstance(lo, int) and isinstance(hi, int):
         return trial.suggest_int(name, int(lo), int(hi))
-    if name in {"learning_rate", "reg_alpha", "reg_lambda", "gamma"}:
-        # gamma/reg params include zero in search space; use linear scale to allow zero.
-        return trial.suggest_float(name, float(lo), float(hi))
     return trial.suggest_float(name, float(lo), float(hi))
 
 
@@ -191,7 +189,6 @@ def _make_xgb_classifier(config: Mapping[str, Any], params: Mapping[str, Any], y
     spw = _scale_pos_weight(y_train, model_cfg.get("scale_pos_weight", "auto"))
     if spw is not None:
         base["scale_pos_weight"] = spw
-    # XGBoost expects np.nan for missing. JSON config uses "nan" for readability.
     if str(base.get("missing", "nan")).lower() == "nan":
         base["missing"] = np.nan
     return XGBClassifier(**base)
@@ -205,12 +202,18 @@ def _time_inner_split(train_idx: np.ndarray, valid_fraction: float, min_valid: i
     return train_idx[:split], train_idx[split:]
 
 
-def optimize_params_for_fold(
-    x: pd.DataFrame,
-    y: pd.Series,
-    train_idx: np.ndarray,
-    config: Mapping[str, Any],
-) -> dict[str, Any]:
+def _train_calibration_split(train_idx: np.ndarray, config: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+    cal_cfg = config.get("calibration", {})
+    if not bool(cal_cfg.get("enabled", False)):
+        return train_idx, np.asarray([], dtype=int)
+    return _time_inner_split(
+        train_idx,
+        float(cal_cfg.get("calibration_tail_fraction", 0.2)),
+        int(cal_cfg.get("min_calibration_bars", 800)),
+    )
+
+
+def optimize_params_for_fold(x: pd.DataFrame, y: pd.Series, train_idx: np.ndarray, config: Mapping[str, Any]) -> dict[str, Any]:
     import optuna
 
     model_cfg = config.get("model", {})
@@ -224,17 +227,13 @@ def optimize_params_for_fold(
         float(model_cfg.get("inner_valid_fraction", 0.2)),
         int(model_cfg.get("min_inner_valid_bars", 500)),
     )
-    # If the inner validation has one class only, still run but objective may be NaN.
+
     def objective(trial: Any) -> float:
         params = {name: _suggest_param(trial, name, bounds) for name, bounds in search_space.items()}
         clf = _make_xgb_classifier(config, params, y.iloc[inner_train_idx])
         clf.fit(x.iloc[inner_train_idx], y.iloc[inner_train_idx])
         proba = clf.predict_proba(x.iloc[inner_valid_idx])[:, 1]
-        metrics = binary_classification_metrics(
-            y.iloc[inner_valid_idx].to_numpy(),
-            proba,
-            threshold=float(model_cfg.get("threshold", 0.6)),
-        )
+        metrics = binary_classification_metrics(y.iloc[inner_valid_idx].to_numpy(), proba, threshold=float(model_cfg.get("threshold", 0.6)))
         value = metrics.get(objective_metric, np.nan)
         if not np.isfinite(value):
             return -1e9
@@ -246,31 +245,73 @@ def optimize_params_for_fold(
     return dict(study.best_params)
 
 
-def train_predict_fold(
-    x: pd.DataFrame,
-    y: pd.Series,
-    fold: Any,
-    config: Mapping[str, Any],
-) -> tuple[pd.DataFrame, dict[str, float], dict[str, Any]]:
+def _metadata_columns_for_predictions(metadata: pd.DataFrame, test_idx: np.ndarray) -> pd.DataFrame:
+    keep = [c for c in ["date", "entry_date", "exit_date", "symbol", "profile", "side", "target_name"] if c in metadata.columns]
+    if not keep:
+        return pd.DataFrame(index=np.arange(len(test_idx)))
+    out = metadata.iloc[test_idx][keep].reset_index(drop=True).copy()
+    return out
+
+
+def train_predict_fold(x: pd.DataFrame, y: pd.Series, metadata: pd.DataFrame, fold: Any, config: Mapping[str, Any]) -> tuple[pd.DataFrame, dict[str, float], dict[str, Any], dict[str, Any]]:
     train_idx = np.asarray(fold.train_idx, dtype=int)
     test_idx = np.asarray(fold.test_idx, dtype=int)
     if len(np.unique(y.iloc[train_idx])) < 2:
         raise ValueError(f"Fold {fold.fold_id} train labels have only one class.")
-    best_params = optimize_params_for_fold(x, y, train_idx, config)
-    clf = _make_xgb_classifier(config, best_params, y.iloc[train_idx])
-    clf.fit(x.iloc[train_idx], y.iloc[train_idx])
-    proba = clf.predict_proba(x.iloc[test_idx])[:, 1]
+
+    model_train_idx, cal_idx = _train_calibration_split(train_idx, config)
+    if len(np.unique(y.iloc[model_train_idx])) < 2:
+        model_train_idx = train_idx
+        cal_idx = np.asarray([], dtype=int)
+
+    best_params = optimize_params_for_fold(x, y, model_train_idx, config)
+    clf = _make_xgb_classifier(config, best_params, y.iloc[model_train_idx])
+    clf.fit(x.iloc[model_train_idx], y.iloc[model_train_idx])
+
+    raw_test = clf.predict_proba(x.iloc[test_idx])[:, 1]
+    raw_cal = clf.predict_proba(x.iloc[cal_idx])[:, 1] if len(cal_idx) else np.asarray([], dtype=float)
+    cal_cfg = config.get("calibration", {})
+    calibrator = fit_probability_calibrator(
+        raw_cal,
+        y.iloc[cal_idx].to_numpy(dtype=int) if len(cal_idx) else np.asarray([], dtype=int),
+        method=str(cal_cfg.get("method", "sigmoid")) if bool(cal_cfg.get("enabled", False)) else "none",
+        fallback_to_raw_if_single_class=bool(cal_cfg.get("fallback_to_raw_if_single_class", True)),
+        random_seed=int(config.get("model", {}).get("random_seed", 42)),
+    )
+    calibrated_test = calibrator.predict(raw_test)
+
     threshold = float(config.get("model", {}).get("threshold", 0.6))
-    metrics = binary_classification_metrics(y.iloc[test_idx].to_numpy(), proba, threshold=threshold)
+    prob_for_metrics = calibrated_test if bool(cal_cfg.get("enabled", False)) else raw_test
+    metrics = binary_classification_metrics(y.iloc[test_idx].to_numpy(), prob_for_metrics, threshold=threshold)
     metrics["fold"] = fold.fold_id
+    metrics["calibration_method"] = str(cal_cfg.get("method", "none")) if bool(cal_cfg.get("enabled", False)) else "none"
+    metrics["calibration_reason"] = calibrator.reason
+    metrics["calibration_rows"] = float(len(cal_idx))
+    metrics.update({f"calibrated_{k}": v for k, v in calibration_metrics(y.iloc[test_idx].to_numpy(), calibrated_test, bins=int(cal_cfg.get("ece_bins", 10))).items()})
+    metrics.update({f"raw_{k}": v for k, v in calibration_metrics(y.iloc[test_idx].to_numpy(), raw_test, bins=int(cal_cfg.get("ece_bins", 10))).items()})
+
+    meta_cols = _metadata_columns_for_predictions(metadata, test_idx)
     preds = pd.DataFrame({
         "fold": fold.fold_id,
         "row_idx": test_idx,
         "y_true": y.iloc[test_idx].to_numpy(dtype=int),
-        "proba": proba,
-        "y_pred": (proba >= threshold).astype(int),
+        "y_prob_raw": raw_test,
+        "y_prob_calibrated": calibrated_test,
+        "y_pred": (prob_for_metrics >= threshold).astype(int),
     })
-    return preds, metrics, best_params
+    if not meta_cols.empty:
+        preds = pd.concat([preds, meta_cols], axis=1)
+
+    cal_summary = {
+        "fold": fold.fold_id,
+        "method": metrics["calibration_method"],
+        "reason": calibrator.reason,
+        "calibration_rows": int(len(cal_idx)),
+        "test_rows": int(len(test_idx)),
+    }
+    cal_summary.update({f"raw_{k}": v for k, v in calibration_metrics(y.iloc[test_idx].to_numpy(), raw_test, bins=int(cal_cfg.get("ece_bins", 10))).items()})
+    cal_summary.update({f"calibrated_{k}": v for k, v in calibration_metrics(y.iloc[test_idx].to_numpy(), calibrated_test, bins=int(cal_cfg.get("ece_bins", 10))).items()})
+    return preds, metrics, best_params, cal_summary
 
 
 def _mean_std_metrics(metrics: list[dict[str, float]]) -> pd.DataFrame:
@@ -282,19 +323,28 @@ def _mean_std_metrics(metrics: list[dict[str, float]]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _write_threshold_sweep(predictions: pd.DataFrame, job_dir: Path, config: Mapping[str, Any]) -> pd.DataFrame:
+    sw_cfg = config.get("threshold_sweep", {})
+    if not bool(sw_cfg.get("enabled", True)):
+        return pd.DataFrame()
+    thresholds = [float(x) for x in sw_cfg.get("thresholds", [0.5, 0.6, 0.7])]
+    prob_cols = [str(x) for x in sw_cfg.get("probability_columns", ["y_prob_calibrated", "y_prob_raw"])]
+    sweep = threshold_sweep_from_predictions(predictions, thresholds=thresholds, probability_columns=prob_cols, y_col="y_true")
+    if not sweep.empty:
+        sweep.to_csv(job_dir / "threshold_sweep.csv", index=False)
+    return sweep
+
+
 def run_training_job(config: Mapping[str, Any], job: TrainingJob, output_root: Path) -> dict[str, Any]:
     ml_ready, metadata = load_job_frames(config, job)
     target_col = str(config.get("sanity", {}).get("target_column", "label"))
     x, y = split_xy(ml_ready, target_col=target_col)
-    # Align metadata after split_xy. In current pipeline labels are complete, but this keeps it safe.
     metadata = metadata.iloc[: len(x)].reset_index(drop=True)
+
     missing_cfg = config.get("missing_values", {})
-    x, y, metadata = apply_missing_strategy(
-        x,
-        y,
-        metadata,
-        dropna=bool(missing_cfg.get("dropna", False)),
-    )
+    x, y, metadata = apply_missing_strategy(x, y, metadata, dropna=bool(missing_cfg.get("dropna", False)))
+    x, y, metadata, candidate_stats = apply_candidate_filter(x, y, metadata, symbol=job.symbol, side=job.side, config=config)
+
     folds = build_validation_folds(config, metadata)
     if not folds:
         raise ValueError(f"No validation folds generated for {job.name}.")
@@ -304,10 +354,12 @@ def run_training_job(config: Mapping[str, Any], job: TrainingJob, output_root: P
     all_predictions: list[pd.DataFrame] = []
     fold_metrics: list[dict[str, float]] = []
     fold_params: list[dict[str, Any]] = []
+    calibration_rows: list[dict[str, Any]] = []
     for fold in folds:
-        preds, metrics, best_params = train_predict_fold(x, y, fold, config)
+        preds, metrics, best_params, cal_summary = train_predict_fold(x, y, metadata, fold, config)
         all_predictions.append(preds)
         fold_metrics.append(metrics)
+        calibration_rows.append(cal_summary)
         row = {"fold": fold.fold_id}
         row.update(best_params)
         fold_params.append(row)
@@ -315,25 +367,48 @@ def run_training_job(config: Mapping[str, Any], job: TrainingJob, output_root: P
             f"{job.name} {fold.fold_id}: "
             f"n_test={int(metrics['n'])} ap={metrics.get('average_precision', np.nan):.4f} "
             f"auc={metrics.get('roc_auc', np.nan):.4f} precision={metrics.get('precision', np.nan):.4f} "
-            f"recall={metrics.get('recall', np.nan):.4f} mcc={metrics.get('mcc', np.nan):.4f}"
+            f"recall={metrics.get('recall', np.nan):.4f} mcc={metrics.get('mcc', np.nan):.4f} "
+            f"cal={metrics.get('calibration_reason', '')}"
         )
 
     predictions = pd.concat(all_predictions, ignore_index=True) if all_predictions else pd.DataFrame()
     metrics_df = pd.DataFrame(fold_metrics)
     summary_df = _mean_std_metrics(fold_metrics)
     params_df = pd.DataFrame(fold_params)
+    calibration_df = pd.DataFrame(calibration_rows)
+    sweep_df = _write_threshold_sweep(predictions, job_dir, config)
 
+    predictions.to_csv(job_dir / "oof_predictions.csv", index=False)
+    # Compatibility with v0.1.4 name.
     predictions.to_csv(job_dir / "predictions.csv", index=False)
     metrics_df.to_csv(job_dir / "fold_metrics.csv", index=False)
     summary_df.to_csv(job_dir / "metrics_summary.csv", index=False)
     params_df.to_csv(job_dir / "best_params_by_fold.csv", index=False)
+    calibration_df.to_csv(job_dir / "calibration_summary.csv", index=False)
     with (job_dir / "run_config.json").open("w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
-    return {
+    best_sweep = {}
+    if not sweep_df.empty and "mcc" in sweep_df.columns:
+        all_sweep = sweep_df[sweep_df["fold"].eq("ALL")]
+        if not all_sweep.empty:
+            best = all_sweep.sort_values(["mcc", "precision"], ascending=False).iloc[0]
+            best_sweep = {
+                "best_threshold": float(best["threshold"]),
+                "best_threshold_prob_col": str(best["probability_column"]),
+                "best_threshold_mcc": float(best["mcc"]),
+                "best_threshold_precision": float(best["precision"]),
+                "best_threshold_recall": float(best["recall"]),
+                "best_threshold_signal_rate": float(best["signal_rate"]),
+            }
+
+    out = {
         "job": job.name,
         "rows": int(len(x)),
         "folds": int(len(folds)),
-        "positive_rate": float((y == 1).mean()),
+        "positive_rate": float((y == 1).mean()) if len(y) else np.nan,
         "output_dir": str(job_dir),
     }
+    out.update(candidate_stats)
+    out.update(best_sweep)
+    return out

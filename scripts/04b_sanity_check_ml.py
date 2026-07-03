@@ -42,13 +42,7 @@ def check_job(cfg: dict, job) -> None:
     for fold in folds[:5]:
         train_pos = float((y.iloc[fold.train_idx] == 1).mean()) if len(fold.train_idx) else 0.0
         test_pos = float((y.iloc[fold.test_idx] == 1).mean()) if len(fold.test_idx) else 0.0
-        print(
-            "fold:", fold.fold_id,
-            "train:", len(fold.train_idx),
-            "test:", len(fold.test_idx),
-            "train_pos:", round(train_pos, 4),
-            "test_pos:", round(test_pos, 4),
-        )
+        print("fold:", fold.fold_id, "train:", len(fold.train_idx), "test:", len(fold.test_idx), "train_pos:", round(train_pos, 4), "test_pos:", round(test_pos, 4))
 
 
 def summarize_results(cfg: dict) -> None:
@@ -58,11 +52,28 @@ def summarize_results(cfg: dict) -> None:
         print(f"\n--- ML RESULTS ---\nNo result directory yet: {root}")
         return
     print(f"\n--- ML RESULTS {root} ---")
+    run_summary = root / "run_summary.csv"
+    comparison = root / "job_comparison.csv"
+    if run_summary.exists():
+        print(f"\n{run_summary}")
+        print(pd.read_csv(run_summary).head(20).to_string(index=False))
+    if comparison.exists():
+        print(f"\n{comparison}")
+        print(pd.read_csv(comparison).head(30).to_string(index=False))
     for summary_path in sorted(root.glob("*/metrics_summary.csv")):
         print(f"\n{summary_path}")
         df = pd.read_csv(summary_path)
-        focus = df[df["metric"].isin(["average_precision", "roc_auc", "precision", "recall", "specificity", "balanced_accuracy", "mcc"])]
+        focus_metrics = ["average_precision", "roc_auc", "precision", "recall", "specificity", "balanced_accuracy", "mcc", "brier_score", "calibrated_brier_score", "raw_brier_score", "calibrated_ece", "raw_ece"]
+        focus = df[df["metric"].isin(focus_metrics)]
         print(focus.to_string(index=False))
+        sweep_path = summary_path.parent / "threshold_sweep.csv"
+        if sweep_path.exists():
+            sweep = pd.read_csv(sweep_path)
+            all_rows = sweep[sweep["fold"].eq("ALL")]
+            if not all_rows.empty:
+                best = all_rows.sort_values(["mcc", "precision"], ascending=False).head(5)
+                print("\nTop thresholds by MCC:")
+                print(best[["probability_column", "threshold", "precision", "recall", "specificity", "mcc", "signal_rate"]].to_string(index=False))
 
 
 def main() -> None:
