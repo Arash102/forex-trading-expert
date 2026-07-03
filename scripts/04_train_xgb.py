@@ -9,12 +9,13 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from debco.ml.reporting import collect_job_comparison
 from debco.ml.xgb_optuna import enabled_jobs, run_training_job
 from debco.utils.io import ensure_dir, read_json
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train XGBoost models with Optuna and walk-forward/CPCV validation.")
+    parser = argparse.ArgumentParser(description="Train XGBoost models with Optuna, calibration, OOF predictions, and threshold sweeps.")
     parser.add_argument("--config", required=True, help="Path to ml config JSON.")
     args = parser.parse_args()
 
@@ -32,6 +33,12 @@ def main() -> None:
     summary_path = Path(output_root) / "run_summary.csv"
     summary_df.to_csv(summary_path, index=False)
     print(f"\nsaved run summary: {summary_path}")
+
+    comparison = collect_job_comparison(Path(output_root))
+    if not comparison.empty:
+        comparison_path = Path(output_root) / "job_comparison.csv"
+        comparison.to_csv(comparison_path, index=False)
+        print(f"saved job comparison: {comparison_path}")
 
 
 if __name__ == "__main__":

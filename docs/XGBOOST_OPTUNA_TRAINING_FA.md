@@ -1,124 +1,95 @@
-# آموزش و ارزیابی XGBoost + Optuna
+# XGBoost + Optuna + Calibration + Threshold Sweep
 
-این مرحله فقط مدل پیش بینی می سازد؛ هنوز مدل معاملاتی نهایی نیست.
-
-## ورودی ها
-
-ورودی مدل فقط فایل های زیر است:
+این مرحله روی فایل‌های strict ML-ready کار می‌کند:
 
 ```text
 data/ml_ready/*_ml_ready_*.csv
 ```
 
-این فایل ها باید فقط شامل موارد زیر باشند:
+این فایل‌ها فقط شامل 100 فیچر نهایی و ستون `label` هستند. فایل‌های metadata فقط برای split زمانی، audit و گزارش استفاده می‌شوند و وارد مدل نمی‌شوند.
+
+## خروجی‌های جدید v0.1.5
+
+برای هر job در مسیر زیر خروجی ساخته می‌شود:
 
 ```text
-100 configured model features
-label
+data/ml_results/<experiment>/<symbol>_<profile>_<side>/
 ```
 
-برای split زمانی و audit از metadata استفاده می کنیم:
+فایل‌های مهم:
 
 ```text
-data/label_metadata/*_metadata_*.csv
+oof_predictions.csv
+fold_metrics.csv
+metrics_summary.csv
+threshold_sweep.csv
+calibration_summary.csv
+best_params_by_fold.csv
+run_config.json
 ```
 
-metadata وارد XGBoost نمی شود.
+`oof_predictions.csv` خروجی out-of-fold است و برای تحلیل آستانه، calibration و بعدا بک تست معاملاتی استفاده می‌شود. ستون‌های مهم:
 
-## Missing values
+```text
+fold
+row_idx
+y_true
+y_prob_raw
+y_prob_calibrated
+y_pred
+date / entry_date / exit_date از metadata
+```
 
-در config پیش فرض:
+## Calibration
+
+در config پیش فرض، calibration فعال است:
 
 ```json
-"missing_values": {
-  "strategy": "xgboost_native",
-  "dropna": false
+"calibration": {
+  "enabled": true,
+  "method": "sigmoid"
 }
 ```
 
-یعنی NaN ها حذف نمی شوند. XGBoost به صورت native با NaN کار می کند و مسیر missing را در هر split یاد می گیرد. این برای فیچرهای سشنی ما مهم است، چون بخشی از NaN ها ساختاری و causal هستند، نه خطای داده.
-
-## Validation
-
-دو روش پشتیبانی می شود:
+برای هر fold، train به دو بخش تقسیم می‌شود:
 
 ```text
-walk_forward
-cpcv
+model_train
+calibration_tail
 ```
 
-برای شروع، walk-forward فعال است. CPCV نیز با group های زمانی، purge event overlap، و embargo پیاده سازی شده است.
+مدل روی `model_train` آموزش می‌بیند و calibrator روی `calibration_tail` fit می‌شود. test fold دست نخورده می‌ماند.
 
-## Metrics
+## Threshold Sweep
 
-متریک های ML شامل این موارد هستند:
+برای هر job و هر fold، آستانه‌های مختلف روی احتمال خام و احتمال calibrated تست می‌شود:
 
 ```text
-accuracy
-precision
-recall
-specificity
-f1
-balanced_accuracy
-mcc
-roc_auc
-average_precision
-log_loss
+0.40 تا 0.85
 ```
 
-مهم: MCC اضافه شده و در گزارش fold و summary ذخیره می شود.
+متریک‌ها شامل precision، recall، specificity، balanced accuracy، MCC و signal rate هستند.
 
-## اجرای مرحله
+## Purged Walk-forward
 
-ابتدا config محلی بسازید:
+در walk-forward، `purge_bars` اضافه شده است. این مقدار ردیف‌های آخر train قبل از شروع test را حذف می‌کند تا overlap ناشی از horizon لیبل Triple Barrier کاهش یابد.
 
-```bash
-cp configs/ml_config.example.json configs/ml_config.local.json
+```json
+"purge_bars": 40
 ```
 
-قبل از train، sanity check:
+برای شروع از 40 استفاده شده، چون بیشترین horizon فعلی XAUUSD برابر 40 کندل است.
 
-```bash
-python scripts/04b_sanity_check_ml.py --config configs/ml_config.local.json
+## Candidate-based / Meta-labeling
+
+در config یک hook برای candidate-based training اضافه شده است، اما پیش فرض خاموش است:
+
+```json
+"candidate_filter": {
+  "enabled": false
+}
 ```
 
-سپس train:
+وقتی روشن شود، مدل فقط روی کندل‌هایی آموزش می‌بیند که primary candidate filter آنها را مناسب دانسته است. این مسیر برای مرحله meta-labeling است: اول candidate بساز، بعد XGBoost فقط تایید کند کدام candidate ارزش ورود دارد.
 
-```bash
-python scripts/04_train_xgb.py --config configs/ml_config.local.json
-```
-
-بعد دوباره sanity check بگیرید تا خلاصه نتایج را ببینید:
-
-```bash
-python scripts/04b_sanity_check_ml.py --config configs/ml_config.local.json
-```
-
-## خروجی ها
-
-```text
-data/ml_results/<experiment>/<job>/predictions.csv
-data/ml_results/<experiment>/<job>/fold_metrics.csv
-data/ml_results/<experiment>/<job>/metrics_summary.csv
-data/ml_results/<experiment>/<job>/best_params_by_fold.csv
-data/ml_results/<experiment>/run_summary.csv
-```
-
-این خروجی ها generated هستند و وارد Git نمی شوند.
-
-## نکته معاملاتی
-
-این مرحله فقط احتمال موفقیت target را می دهد:
-
-```text
-p_long
-p_short
-```
-
-تصمیم معاملاتی بعدا در لایه جدا ساخته می شود:
-
-```text
-long اگر p_long بالا و p_short پایین باشد
-short اگر p_short بالا و p_long پایین باشد
-no trade در حالت conflict یا عدم اطمینان
-```
+فعلا baseline روی همه کندل‌ها اجرا می‌شود. اگر edge ضعیف بود، در مرحله بعد candidate filter را فعال و تنظیم می‌کنیم.
