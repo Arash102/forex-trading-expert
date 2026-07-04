@@ -35,8 +35,19 @@ def fit_probability_calibrator(
     *,
     method: str = "sigmoid",
     fallback_to_raw_if_single_class: bool = True,
+    allow_inverted_sigmoid: bool = False,
     random_seed: int = 42,
 ) -> ProbabilityCalibrator:
+    """Fit a probability calibrator.
+
+    For trading decisions we do not allow sigmoid calibration to reverse the
+    ranking by default. If a calibration tail is noisy, unconstrained logistic
+    calibration can learn a negative coefficient, making higher raw model
+    probabilities map to lower calibrated probabilities. That can improve a
+    fold's Brier score by chance but is unsafe as a signal transformation.
+    When that happens, we fall back to raw probabilities unless explicitly
+    allowed by config.
+    """
     p = np.asarray(probabilities, dtype=float)
     y = np.asarray(y_true, dtype=int)
     method_l = str(method).lower()
@@ -54,6 +65,9 @@ def fit_probability_calibrator(
     if method_l == "sigmoid":
         model = LogisticRegression(random_state=int(random_seed), solver="lbfgs")
         model.fit(p.reshape(-1, 1), y)
+        coef = float(model.coef_[0][0])
+        if coef <= 0.0 and not bool(allow_inverted_sigmoid):
+            return ProbabilityCalibrator(method="none", model=None, fitted=False, reason="sigmoid_inverted_fallback")
         return ProbabilityCalibrator(method="sigmoid", model=model, fitted=True, reason="ok")
     if method_l == "isotonic":
         model = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
