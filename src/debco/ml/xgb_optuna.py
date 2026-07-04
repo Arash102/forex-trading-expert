@@ -23,7 +23,7 @@ from sklearn.metrics import (
 )
 
 from debco.ml.calibration import calibration_metrics, fit_probability_calibrator
-from debco.ml.candidates import apply_candidate_filter
+from debco.ml.candidates import candidate_mask_for_job
 from debco.ml.thresholding import threshold_sweep_from_predictions
 from debco.validation.cpcv import make_cpcv_splits
 from debco.validation.walk_forward import make_walk_forward_splits
@@ -123,6 +123,103 @@ def build_validation_folds(config: Mapping[str, Any], metadata: pd.DataFrame) ->
     raise ValueError(f"Unsupported validation method: {method}")
 
 
+def candidate_stats_from_mask(
+    x: pd.DataFrame,
+    y: pd.Series,
+    candidate_mask: pd.Series,
+    *,
+    config: Mapping[str, Any],
+) -> dict[str, float | str]:
+    """Summarize candidate filtering without changing row indices.
+
+    Candidate-based/meta-label validation should usually keep the original
+    chronological row index and then select candidate rows inside each
+    train/test time block. This avoids collapsing time and losing walk-forward
+    folds when candidate rows are sparse.
+    """
+    before = int(len(x))
+    mask = pd.Series(candidate_mask, index=x.index).fillna(False).astype(bool)
+    after = int(mask.sum())
+    y2 = y.loc[mask]
+    return {
+        "candidate_set": str(config.get("candidate_filter", {}).get("set_name", "all_candles")),
+        "candidate_preset": str(config.get("candidate_filter", {}).get("preset", "all_candles")),
+        "candidate_filter_enabled": float(bool(config.get("candidate_filter", {}).get("enabled", False))),
+        "candidate_rows_before": float(before),
+        "candidate_rows_after": float(after),
+        "candidate_keep_ratio": float(after / before) if before else np.nan,
+        "candidate_positive_rate": float((y2 == 1).mean()) if after else np.nan,
+        "candidate_positive_count": float((y2 == 1).sum()) if after else 0.0,
+        "candidate_negative_count": float((y2 == 0).sum()) if after else 0.0,
+    }
+
+
+def build_candidate_aware_validation_folds(
+    config: Mapping[str, Any],
+    metadata: pd.DataFrame,
+    candidate_mask: pd.Series,
+    y: pd.Series | None = None,
+) -> tuple[list[Any], dict[str, float]]:
+    """Build validation folds on the original timeline, then keep candidates.
+
+    This is the safe default for candidate-based/meta-label training. We do not
+    first compress the dataset to candidate rows, because that destroys the
+    original time spacing and can reduce 9 walk-forward folds to 0 or 1 fold.
+    """
+    from debco.validation.walk_forward import ValidationFold
+
+    cand_cfg = config.get("candidate_validation", {})
+    mode = str(cand_cfg.get("mode", "base_timeline")).lower()
+    if mode not in {"base_timeline", "filter_before_split"}:
+        raise ValueError(f"Unsupported candidate_validation.mode: {mode}")
+
+    mask = pd.Series(candidate_mask).reset_index(drop=True).fillna(False).astype(bool).to_numpy()
+
+    if mode == "filter_before_split":
+        filtered_meta = metadata.loc[mask].reset_index(drop=True)
+        folds = build_validation_folds(config, filtered_meta)
+        return folds, {
+            "candidate_validation_mode": 0.0,
+            "base_fold_count": float(len(folds)),
+            "candidate_fold_count": float(len(folds)),
+            "candidate_folds_skipped": 0.0,
+        }
+
+    base_folds = build_validation_folds(config, metadata)
+    min_train = int(cand_cfg.get("min_train_candidates", 300))
+    min_test = int(cand_cfg.get("min_test_candidates", 30))
+    min_train_pos = int(cand_cfg.get("min_train_positives", 20))
+    min_test_pos = int(cand_cfg.get("min_test_positives", 3))
+
+    out = []
+    skipped = 0
+    for fold in base_folds:
+        train_base = np.asarray(fold.train_idx, dtype=int)
+        test_base = np.asarray(fold.test_idx, dtype=int)
+        train_idx = train_base[mask[train_base]]
+        test_idx = test_base[mask[test_base]]
+
+        ok = len(train_idx) >= min_train and len(test_idx) >= min_test
+        if ok and y is not None:
+            y_train = y.iloc[train_idx]
+            y_test = y.iloc[test_idx]
+            ok = ok and int((y_train == 1).sum()) >= min_train_pos and int((y_train == 0).sum()) >= min_train_pos
+            ok = ok and int((y_test == 1).sum()) >= min_test_pos and int((y_test == 0).sum()) >= min_test_pos
+        if ok:
+            out.append(ValidationFold(fold_id=fold.fold_id, train_idx=train_idx, test_idx=test_idx))
+        else:
+            skipped += 1
+
+    return out, {
+        "candidate_validation_mode": 1.0,
+        "base_fold_count": float(len(base_folds)),
+        "candidate_fold_count": float(len(out)),
+        "candidate_folds_skipped": float(skipped),
+        "candidate_min_train_candidates": float(min_train),
+        "candidate_min_test_candidates": float(min_test),
+    }
+
+
 def _safe_metric(fn, default: float = np.nan) -> float:
     try:
         value = float(fn())
@@ -192,6 +289,34 @@ def _make_xgb_classifier(config: Mapping[str, Any], params: Mapping[str, Any], y
     if str(base.get("missing", "nan")).lower() == "nan":
         base["missing"] = np.nan
     return XGBClassifier(**base)
+
+
+def _default_metric_probability_column(config: Mapping[str, Any]) -> str:
+    """Choose probability column used for fold_metrics and live y_pred.
+
+    Calibration is useful for probability interpretation and Brier/ECE, but in
+    candidate-based/meta-label experiments raw XGBoost scores are usually the
+    safer ranking signal. Calibrated probabilities can be compressed around the
+    base rate and a fixed high threshold may silently produce zero signals.
+    """
+    model_cfg = config.get("model", {})
+    explicit = model_cfg.get("evaluation_probability_column")
+    if explicit:
+        return str(explicit)
+    candidate_enabled = bool(config.get("candidate_filter", {}).get("enabled", False))
+    if candidate_enabled:
+        return "y_prob_raw"
+    cal_enabled = bool(config.get("calibration", {}).get("enabled", False))
+    return "y_prob_calibrated" if cal_enabled else "y_prob_raw"
+
+
+def _select_probability_column(raw: np.ndarray, calibrated: np.ndarray, probability_column: str) -> np.ndarray:
+    col = str(probability_column)
+    if col == "y_prob_raw":
+        return raw
+    if col == "y_prob_calibrated":
+        return calibrated
+    raise ValueError(f"Unsupported evaluation_probability_column: {probability_column!r}")
 
 
 def _time_inner_split(train_idx: np.ndarray, valid_fraction: float, min_valid: int) -> tuple[np.ndarray, np.ndarray]:
@@ -276,14 +401,18 @@ def train_predict_fold(x: pd.DataFrame, y: pd.Series, metadata: pd.DataFrame, fo
         y.iloc[cal_idx].to_numpy(dtype=int) if len(cal_idx) else np.asarray([], dtype=int),
         method=str(cal_cfg.get("method", "sigmoid")) if bool(cal_cfg.get("enabled", False)) else "none",
         fallback_to_raw_if_single_class=bool(cal_cfg.get("fallback_to_raw_if_single_class", True)),
+        allow_inverted_sigmoid=bool(cal_cfg.get("allow_inverted_sigmoid", False)),
         random_seed=int(config.get("model", {}).get("random_seed", 42)),
     )
     calibrated_test = calibrator.predict(raw_test)
 
-    threshold = float(config.get("model", {}).get("threshold", 0.6))
-    prob_for_metrics = calibrated_test if bool(cal_cfg.get("enabled", False)) else raw_test
+    model_cfg = config.get("model", {})
+    threshold = float(model_cfg.get("threshold", 0.3))
+    evaluation_probability_column = _default_metric_probability_column(config)
+    prob_for_metrics = _select_probability_column(raw_test, calibrated_test, evaluation_probability_column)
     metrics = binary_classification_metrics(y.iloc[test_idx].to_numpy(), prob_for_metrics, threshold=threshold)
     metrics["fold"] = fold.fold_id
+    metrics["probability_column"] = evaluation_probability_column
     metrics["calibration_method"] = str(cal_cfg.get("method", "none")) if bool(cal_cfg.get("enabled", False)) else "none"
     metrics["calibration_reason"] = calibrator.reason
     metrics["calibration_rows"] = float(len(cal_idx))
@@ -343,11 +472,18 @@ def run_training_job(config: Mapping[str, Any], job: TrainingJob, output_root: P
 
     missing_cfg = config.get("missing_values", {})
     x, y, metadata = apply_missing_strategy(x, y, metadata, dropna=bool(missing_cfg.get("dropna", False)))
-    x, y, metadata, candidate_stats = apply_candidate_filter(x, y, metadata, symbol=job.symbol, side=job.side, config=config)
 
-    folds = build_validation_folds(config, metadata)
+    candidate_mask = candidate_mask_for_job(x, symbol=job.symbol, side=job.side, config=config)
+    candidate_mask = pd.Series(candidate_mask, index=x.index).fillna(False).astype(bool).reset_index(drop=True)
+    candidate_stats = candidate_stats_from_mask(x, y, candidate_mask, config=config)
+
+    folds, candidate_fold_stats = build_candidate_aware_validation_folds(config, metadata, candidate_mask, y)
+    candidate_stats.update(candidate_fold_stats)
     if not folds:
-        raise ValueError(f"No validation folds generated for {job.name}.")
+        raise ValueError(
+            f"No candidate-aware validation folds generated for {job.name}. "
+            "Relax candidate_filter or lower candidate_validation minimums."
+        )
 
     job_dir = output_root / job.name
     job_dir.mkdir(parents=True, exist_ok=True)
@@ -365,7 +501,8 @@ def run_training_job(config: Mapping[str, Any], job: TrainingJob, output_root: P
         fold_params.append(row)
         print(
             f"{job.name} {fold.fold_id}: "
-            f"n_test={int(metrics['n'])} ap={metrics.get('average_precision', np.nan):.4f} "
+            f"n_test={int(metrics['n'])} prob={metrics.get('probability_column', '')} "
+            f"thr={metrics.get('threshold', np.nan):.2f} ap={metrics.get('average_precision', np.nan):.4f} "
             f"auc={metrics.get('roc_auc', np.nan):.4f} precision={metrics.get('precision', np.nan):.4f} "
             f"recall={metrics.get('recall', np.nan):.4f} mcc={metrics.get('mcc', np.nan):.4f} "
             f"cal={metrics.get('calibration_reason', '')}"

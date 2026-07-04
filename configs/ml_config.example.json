@@ -7,7 +7,7 @@
   },
   "output": {
     "results_dir": "data/ml_results",
-    "experiment_name": "xgb_v0_1_5_all_jobs_calibrated"
+    "experiment_name": "xgb_v0_1_7_rule_context_reference"
   },
   "jobs": [
     {
@@ -83,28 +83,13 @@
   },
   "candidate_filter": {
     "enabled": false,
-    "preset": "session_tradeable_v1",
-    "session_block_ids": [
-      3,
-      4,
-      5,
-      6
-    ],
-    "max_spread_pips_by_symbol": {
-      "EURUSD": 1.5,
-      "XAUUSD": 80.0
-    },
-    "directional_context_v1": {
-      "long_min_gmma_distance": -20,
-      "short_max_gmma_distance": 20,
-      "min_atr_regime": 1,
-      "max_atr_regime": 4
-    }
+    "set_name": "all_candles",
+    "preset": "session_volatility_v1"
   },
   "model": {
     "type": "xgboost_classifier",
     "random_seed": 42,
-    "threshold": 0.6,
+    "threshold": 0.3,
     "objective_metric": "average_precision",
     "optuna_trials": 15,
     "inner_valid_fraction": 0.2,
@@ -154,7 +139,8 @@
         0.1,
         30.0
       ]
-    }
+    },
+    "evaluation_probability_column": "y_prob_raw"
   },
   "calibration": {
     "enabled": true,
@@ -162,7 +148,8 @@
     "calibration_tail_fraction": 0.2,
     "min_calibration_bars": 800,
     "fallback_to_raw_if_single_class": true,
-    "ece_bins": 10
+    "ece_bins": 10,
+    "allow_inverted_sigmoid": false
   },
   "threshold_sweep": {
     "enabled": true,
@@ -171,6 +158,10 @@
       "y_prob_raw"
     ],
     "thresholds": [
+      0.2,
+      0.25,
+      0.3,
+      0.35,
       0.4,
       0.45,
       0.5,
@@ -225,5 +216,237 @@
       "mfe_pips",
       "mae_pips"
     ]
+  },
+  "candidate_experiments": {
+    "enabled": true,
+    "base_experiment_name": "xgb_v0_1_7_rule_context",
+    "sets": [
+      {
+        "enabled": true,
+        "name": "rule_context_v1",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "rule_inspired_context_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3,
+              "XAUUSD": 80.0
+            }
+          },
+          "eurusd_buy_context": {
+            "session_block_ids": [
+              3,
+              4,
+              5
+            ],
+            "min_rsi": 35.0,
+            "max_rsi": 66.0,
+            "min_gmma_distance": -35.0,
+            "min_atr_regime": 1,
+            "max_atr_regime": 4,
+            "min_london_expansion_vs_asia": 0.15,
+            "require_h1_non_negative": false
+          },
+          "eurusd_sell_context": {
+            "session_block_ids": [
+              3,
+              6
+            ],
+            "min_rsi": 45.0,
+            "max_rsi": 78.0,
+            "min_gmma_distance": -10.0,
+            "max_gmma_slope": 4.0,
+            "min_atr_regime": 1,
+            "max_atr_regime": 4,
+            "exclude_friday": false
+          },
+          "xau_buy_context": {
+            "session_block_ids": [
+              4,
+              5
+            ],
+            "min_rsi": 30.0,
+            "max_rsi": 68.0,
+            "require_h1_non_negative": true,
+            "min_gmma_distance": -80.0,
+            "min_gmma_slope": -5.0,
+            "min_atr_regime": 1,
+            "max_atr_regime": 4
+          },
+          "xau_sell_context": {
+            "session_block_ids": [
+              5
+            ],
+            "max_rsi": 62.0,
+            "max_gmma_slope": 3.0,
+            "max_gmma_distance": 80.0,
+            "max_session_volatility_percentile": 0.55,
+            "exclude_friday": true
+          },
+          "min_keep_ratio": 0.02
+        }
+      },
+      {
+        "enabled": false,
+        "name": "rule_core_or_context_v1",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "rule_inspired_core_or_context_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3,
+              "XAUUSD": 80.0
+            }
+          },
+          "eurusd_buy_context": {
+            "session_block_ids": [
+              3,
+              4,
+              5
+            ],
+            "min_rsi": 35.0,
+            "max_rsi": 66.0,
+            "min_gmma_distance": -35.0,
+            "min_atr_regime": 1,
+            "max_atr_regime": 4,
+            "min_london_expansion_vs_asia": 0.15,
+            "require_h1_non_negative": false
+          },
+          "eurusd_sell_context": {
+            "session_block_ids": [
+              3,
+              6
+            ],
+            "min_rsi": 45.0,
+            "max_rsi": 78.0,
+            "min_gmma_distance": -10.0,
+            "max_gmma_slope": 4.0,
+            "min_atr_regime": 1,
+            "max_atr_regime": 4,
+            "exclude_friday": false
+          },
+          "xau_buy_context": {
+            "session_block_ids": [
+              4,
+              5
+            ],
+            "min_rsi": 30.0,
+            "max_rsi": 68.0,
+            "require_h1_non_negative": true,
+            "min_gmma_distance": -80.0,
+            "min_gmma_slope": -5.0,
+            "min_atr_regime": 1,
+            "max_atr_regime": 4
+          },
+          "xau_sell_context": {
+            "session_block_ids": [
+              5
+            ],
+            "max_rsi": 62.0,
+            "max_gmma_slope": 3.0,
+            "max_gmma_distance": 80.0,
+            "max_session_volatility_percentile": 0.55,
+            "exclude_friday": true
+          },
+          "min_keep_ratio": 0.02
+        }
+      },
+      {
+        "enabled": false,
+        "name": "rule_core_v1",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "rule_inspired_core_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3,
+              "XAUUSD": 80.0
+            }
+          },
+          "eurusd_ah_atr2_buy": {},
+          "eurusd_l3_r52_buy": {},
+          "eurusd_l4_not2_buy": {},
+          "eurusd_lateny_tuefri_short": {},
+          "eurusd_lateny_atrhi_short": {},
+          "eurusd_london_weak_short": {},
+          "xau_asial_reject_buy": {},
+          "xau_h1up_buy": {},
+          "xau_dc_nofri_short": {},
+          "min_keep_ratio": 0.0
+        }
+      },
+      {
+        "enabled": false,
+        "name": "eurusd_buy_playbook_v1",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "eurusd_buy_playbook_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "eurusd_ah_atr2_buy": {},
+          "eurusd_l3_r52_buy": {},
+          "eurusd_l4_not2_buy": {},
+          "min_keep_ratio": 0.001
+        }
+      },
+      {
+        "enabled": false,
+        "name": "eurusd_sell_core_v1",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "eurusd_sell_core_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "eurusd_lateny_tuefri_short": {},
+          "eurusd_lateny_atrhi_short": {},
+          "eurusd_london_weak_short": {},
+          "min_keep_ratio": 0.001
+        }
+      },
+      {
+        "enabled": false,
+        "name": "xau_buy_final_v1",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "xau_buy_final_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80.0
+            }
+          },
+          "xau_asial_reject_buy": {},
+          "xau_h1up_buy": {},
+          "min_keep_ratio": 0.001
+        }
+      },
+      {
+        "enabled": false,
+        "name": "xau_sell_dc_nofri_v1",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "xau_sell_dc_nofri_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80.0
+            }
+          },
+          "xau_dc_nofri_short": {},
+          "min_keep_ratio": 0.001
+        }
+      }
+    ]
+  },
+  "candidate_validation": {
+    "mode": "base_timeline",
+    "min_train_candidates": 200,
+    "min_test_candidates": 20,
+    "min_train_positives": 15,
+    "min_test_positives": 2
   }
 }
