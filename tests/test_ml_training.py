@@ -232,3 +232,27 @@ def test_rule_context_candidate_preset_returns_candidates() -> None:
     }
     mask = candidate_mask_for_job(df, symbol="EURUSD", side="long", config=cfg)
     assert mask.sum() >= 1
+
+
+def test_trading_metrics_profit_factor_and_payoff() -> None:
+    from debco.trading.risk_metrics import payoff_ratio, profit_factor, summarize_trade_pnl
+    import pandas as pd
+
+    pnl = [20.0, -10.0, 20.0, -10.0]
+    assert profit_factor(pnl) == 2.0
+    assert payoff_ratio(pnl) == 2.0
+    trades = pd.DataFrame({"pnl_pips": pnl, "pnl_R": [2.0, -1.0, 2.0, -1.0], "date": pd.date_range("2025-01-01", periods=4)})
+    s = summarize_trade_pnl(trades, initial_capital=1000.0, risk_per_trade=0.02, ruin_drawdowns=[0.25], n_ruin_sims=10)
+    assert s["trade_count"] == 4.0
+    assert s["win_rate"] == 0.5
+    assert s["profit_factor"] == 2.0
+    assert s["net_R"] == 2.0
+
+
+def test_fixed_threshold_and_top_percentile_masks() -> None:
+    from debco.trading.threshold_policy import fixed_threshold_mask, top_percentile_mask_by_fold
+    import pandas as pd
+
+    df = pd.DataFrame({"fold": ["a", "a", "a", "b", "b"], "p": [0.1, 0.9, 0.5, 0.8, 0.2]})
+    assert fixed_threshold_mask(df, probability_column="p", threshold=0.5).tolist() == [False, True, True, True, False]
+    assert top_percentile_mask_by_fold(df, probability_column="p", top_percentile=50).tolist() == [False, True, True, True, False]
