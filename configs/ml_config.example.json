@@ -498,5 +498,388 @@
       "min_past_trades": 30,
       "fallback_threshold": null
     }
+  },
+  "portfolio_eval": {
+    "source_trading_eval_dir": "data/trading_eval",
+    "output_dir": "data/portfolio_eval",
+    "initial_capital": 1000.0,
+    "risk_per_trade": 0.02,
+    "ruin_drawdowns": [
+      0.25,
+      0.3
+    ],
+    "risk_of_ruin_simulations": 5000,
+    "random_seed": 42,
+    "risk_controls": {
+      "max_open_trades": 8,
+      "max_open_risk": 0.16,
+      "max_daily_risk": 0.16,
+      "max_trades_per_day": 8,
+      "max_trades_per_symbol_per_day": 4,
+      "stop_after_daily_losses": 3,
+      "no_opposite_same_symbol_open": true,
+      "no_overlap_same_symbol": false,
+      "dedupe_same_symbol_entry": true
+    },
+    "portfolios": [
+      {
+        "enabled": true,
+        "name": "p01_eur_fast_long_top2",
+        "description": "Single best EURUSD fast long policy from OOF trading eval.",
+        "components": [
+          {
+            "component_id": "eur_fast_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 1
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p02_xau_active_short_top10",
+        "description": "Single XAU active short policy close to PF 1.5.",
+        "components": [
+          {
+            "component_id": "xau_active_short_top10",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_active_1500_800_h32_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 10.0,
+            "priority": 1
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p03_mixed_eur_fast_xau_active",
+        "description": "Diversified EUR fast long plus XAU active short.",
+        "components": [
+          {
+            "component_id": "eur_fast_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 1
+          },
+          {
+            "component_id": "xau_active_short_top10",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_active_1500_800_h32_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 10.0,
+            "priority": 2
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p04_xau_dual",
+        "description": "XAU active short plus XAU runner long, controlled by same-symbol risk rules.",
+        "components": [
+          {
+            "component_id": "xau_active_short_top10",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_active_1500_800_h32_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 10.0,
+            "priority": 1
+          },
+          {
+            "component_id": "xau_runner_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_runner_2200_1100_h40_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 2
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p05_broad_mixed_probe",
+        "description": "Broader experimental mix; use for diagnostics, not direct deployment.",
+        "components": [
+          {
+            "component_id": "eur_fast_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 1
+          },
+          {
+            "component_id": "eur_runner_long_thr075",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_runner_20_10_h24_long",
+            "policy": "fixed_threshold",
+            "probability_column": "y_prob_raw",
+            "threshold": 0.75,
+            "priority": 3
+          },
+          {
+            "component_id": "xau_active_short_top10",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_active_1500_800_h32_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 10.0,
+            "priority": 2
+          },
+          {
+            "component_id": "xau_runner_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_runner_2200_1100_h40_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 4
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p06_eurusd_buy_sell_probe",
+        "description": "EURUSD side-complete probe: current best buy plus optional EURUSD sell candidate. The short component is optional until it is trained/evaluated.",
+        "components": [
+          {
+            "component_id": "eur_fast_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 1
+          },
+          {
+            "component_id": "eur_fast_short_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 2,
+            "required": false
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p07_xau_buy_sell_core",
+        "description": "XAUUSD side-complete core: runner long buy plus active short sell.",
+        "components": [
+          {
+            "component_id": "xau_runner_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_runner_2200_1100_h40_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 2
+          },
+          {
+            "component_id": "xau_active_short_top10",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_active_1500_800_h32_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 10.0,
+            "priority": 1
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p08_side_complete_core_optional",
+        "description": "Four-side system template: EURUSD buy/sell and XAUUSD buy/sell. EURUSD sell is optional until trained and should be made required before final live acceptance.",
+        "components": [
+          {
+            "component_id": "eur_fast_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 1
+          },
+          {
+            "component_id": "eur_fast_short_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 2,
+            "required": false
+          },
+          {
+            "component_id": "xau_runner_long_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_runner_2200_1100_h40_long",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 2
+          },
+          {
+            "component_id": "xau_active_short_top10",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "XAUUSD_active_1500_800_h32_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 10.0,
+            "priority": 1
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p09_eur_short_probe_optional",
+        "description": "Diagnostic EURUSD short-only template; optional because this job may not have been trained/evaluated yet.",
+        "components": [
+          {
+            "component_id": "eur_fast_short_top2",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 2.0,
+            "priority": 2,
+            "required": false
+          }
+        ]
+      },
+      {
+        "enabled": true,
+        "name": "p10_eur_short_top5_probe_optional",
+        "description": "Diagnostic EURUSD short-only wider top-5-percent template; optional because this job may not have been trained/evaluated yet.",
+        "components": [
+          {
+            "component_id": "eur_fast_short_top5",
+            "experiment": "xgb_v0_1_7_rule_context_rule_context_v1",
+            "job": "EURUSD_fast_15_8_h16_short",
+            "policy": "top_percentile_by_fold",
+            "probability_column": "y_prob_raw",
+            "top_percentile": 5.0,
+            "priority": 2,
+            "required": false
+          }
+        ]
+      }
+    ],
+    "risk_policy_sweep": {
+      "enabled": true,
+      "policies": [
+        {
+          "enabled": true,
+          "name": "no_controls_diagnostic",
+          "description": "Diagnostic ceiling: accepts all candidate trades except no live risk caps. Not deployment-ready.",
+          "controls": {
+            "max_open_trades": null,
+            "max_open_risk": null,
+            "max_daily_risk": null,
+            "max_trades_per_day": null,
+            "max_trades_per_symbol_per_day": null,
+            "max_trades_per_session": null,
+            "max_trades_per_symbol_per_session": null,
+            "stop_after_daily_losses": null,
+            "no_opposite_same_symbol_open": false,
+            "no_overlap_same_symbol": false,
+            "dedupe_same_symbol_entry": false
+          }
+        },
+        {
+          "enabled": true,
+          "name": "user_max4sym_open8",
+          "description": "User-requested baseline: max 4 trades per symbol/day and max 8 simultaneous open trades.",
+          "controls": {
+            "max_open_trades": 8,
+            "max_open_risk": 0.16,
+            "max_daily_risk": 0.16,
+            "max_trades_per_day": 8,
+            "max_trades_per_symbol_per_day": 4,
+            "stop_after_daily_losses": 3,
+            "no_opposite_same_symbol_open": true,
+            "no_overlap_same_symbol": false,
+            "dedupe_same_symbol_entry": true
+          }
+        },
+        {
+          "enabled": true,
+          "name": "non_overlap_same_symbol",
+          "description": "Allows repeated same-symbol trades only after the previous same-symbol trade has exited.",
+          "controls": {
+            "max_open_trades": 8,
+            "max_open_risk": 0.16,
+            "max_daily_risk": 0.16,
+            "max_trades_per_day": 8,
+            "max_trades_per_symbol_per_day": 4,
+            "stop_after_daily_losses": 3,
+            "no_opposite_same_symbol_open": true,
+            "no_overlap_same_symbol": true,
+            "dedupe_same_symbol_entry": true
+          }
+        },
+        {
+          "enabled": true,
+          "name": "max2_symbol_day",
+          "description": "More conservative symbol cap: max 2 trades per symbol/day, max 8 open trades.",
+          "controls": {
+            "max_open_trades": 8,
+            "max_open_risk": 0.16,
+            "max_daily_risk": 0.16,
+            "max_trades_per_day": 8,
+            "max_trades_per_symbol_per_day": 2,
+            "stop_after_daily_losses": 3,
+            "no_opposite_same_symbol_open": true,
+            "no_overlap_same_symbol": false,
+            "dedupe_same_symbol_entry": true
+          }
+        },
+        {
+          "enabled": true,
+          "name": "session_cap",
+          "description": "Session-aware cap: max 4 per symbol/day plus max 1 per symbol/session.",
+          "controls": {
+            "max_open_trades": 8,
+            "max_open_risk": 0.16,
+            "max_daily_risk": 0.16,
+            "max_trades_per_day": 8,
+            "max_trades_per_symbol_per_day": 4,
+            "max_trades_per_symbol_per_session": 1,
+            "stop_after_daily_losses": 3,
+            "no_opposite_same_symbol_open": true,
+            "no_overlap_same_symbol": false,
+            "dedupe_same_symbol_entry": true
+          }
+        },
+        {
+          "enabled": true,
+          "name": "daily_loss_guard",
+          "description": "User max4/open8 plus tighter stop after 2 known closed losses in the same day.",
+          "controls": {
+            "max_open_trades": 8,
+            "max_open_risk": 0.16,
+            "max_daily_risk": 0.16,
+            "max_trades_per_day": 8,
+            "max_trades_per_symbol_per_day": 4,
+            "stop_after_daily_losses": 2,
+            "no_opposite_same_symbol_open": true,
+            "no_overlap_same_symbol": false,
+            "dedupe_same_symbol_entry": true
+          }
+        }
+      ]
+    }
   }
 }
