@@ -91,7 +91,7 @@
     "random_seed": 42,
     "threshold": 0.3,
     "objective_metric": "average_precision",
-    "optuna_trials": 15,
+    "optuna_trials": 30,
     "inner_valid_fraction": 0.2,
     "min_inner_valid_bars": 500,
     "scale_pos_weight": "auto",
@@ -881,5 +881,777 @@
         }
       ]
     }
+  },
+  "setup_inventory": {
+    "enabled": true,
+    "base_experiment_name": "xgb_v0_1_10_setup_inventory",
+    "output_dir": "data/setup_inventory",
+    "target_setups_per_symbol_side": 3,
+    "acceptance": {
+      "min_trade_count": 20,
+      "min_profit_factor_R_soft": 1.3,
+      "min_profit_factor_R_strong": 1.5,
+      "max_risk_of_ruin_dd_25pct_soft": 0.05,
+      "max_risk_of_ruin_dd_25pct_strong": 0.01,
+      "min_positive_folds_soft": 5,
+      "min_positive_folds_strong": 6
+    },
+    "setups": [
+      {
+        "enabled": true,
+        "setup_id": "EUR_AH_ATR2_BUY",
+        "symbol": "EURUSD",
+        "side": "long",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_buy",
+        "description": "EURUSD buy context around AH/ATR2 continuation: Asia-high reclaim/expansion in overlap/late overlap.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "min_distance_from_asia_high_pips": -2.0,
+          "min_london_expansion_vs_asia": 0.0,
+          "min_rsi": 42.0,
+          "max_rsi": 72.0,
+          "min_gmma_distance": -15.0,
+          "min_atr_regime": 1,
+          "max_atr_regime": 4
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_L3_R52_BUY",
+        "symbol": "EURUSD",
+        "side": "long",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_buy",
+        "description": "EURUSD buy context around London block 3 pullback/low reclaim with RSI <= about 52.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            3,
+            4
+          ],
+          "min_distance_from_asia_low_pips": -2.0,
+          "max_distance_from_asia_low_pips": 14.0,
+          "min_rsi": 30.0,
+          "max_rsi": 58.0,
+          "min_gmma_distance": -25.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_L4_NOT2_BUY",
+        "symbol": "EURUSD",
+        "side": "long",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_buy",
+        "description": "EURUSD buy context around overlap pullback near confirmed zigzag low, excluding weak market-regime 2.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "min_distance_from_zigzag_low_pips": -2.0,
+          "max_distance_from_zigzag_low_pips": 22.0,
+          "max_rsi": 66.0,
+          "min_gmma_distance": -40.0,
+          "require_h1_non_negative": true,
+          "excluded_market_regime": 2
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_LATENY_TUEFRI_SHORT",
+        "symbol": "EURUSD",
+        "side": "short",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_sell",
+        "description": "EURUSD short context around late-NY Tuesday/Friday exhaustion after upside pressure.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_id": 6,
+          "day_of_week": [
+            1,
+            4
+          ],
+          "min_rsi": 52.0,
+          "min_gmma_distance": -12.0,
+          "max_gmma_slope": 5.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_LATENY_ATRHI_SHORT",
+        "symbol": "EURUSD",
+        "side": "short",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_sell",
+        "description": "EURUSD short context around late-NY high-ATR exhaustion.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_id": 6,
+          "min_atr_regime": 3,
+          "min_rsi": 55.0,
+          "min_gmma_distance": -5.0,
+          "max_gmma_slope": 4.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_LONDON_WEAK_SHORT",
+        "symbol": "EURUSD",
+        "side": "short",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_sell",
+        "description": "EURUSD short context around London weakness / loss of momentum.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_id": 3,
+          "market_regimes": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "min_gmma_distance": 0.0,
+          "max_gmma_distance": 80.0,
+          "max_gmma_slope": 1.0,
+          "min_atr_regime": 1,
+          "max_atr_regime": 4
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_ASIAL_REJECT_BUY",
+        "symbol": "XAUUSD",
+        "side": "long",
+        "profile": "runner_2200_1100_h40",
+        "family": "xau_buy",
+        "description": "XAU buy context around Asia-low rejection with low RSI and non-deteriorating momentum.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80.0
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "max_distance_from_asia_low_pips": 450.0,
+          "max_rsi": 52.0,
+          "min_gmma_slope": -10.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_H1UP_BUY",
+        "symbol": "XAUUSD",
+        "side": "long",
+        "profile": "runner_2200_1100_h40",
+        "family": "xau_buy",
+        "description": "XAU buy context around H1-up high-ATR continuation.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80.0
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "min_h1_trend_direction": 0,
+          "min_atr_regime": 2,
+          "max_atr_regime": 4,
+          "min_gmma_distance": 0.0,
+          "min_rsi": 40.0,
+          "max_rsi": 75.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_BUY_BREAKOUT_PULLBACK",
+        "symbol": "XAUUSD",
+        "side": "long",
+        "profile": "runner_2200_1100_h40",
+        "family": "xau_buy",
+        "description": "XAU buy discovery context: H1-up breakout/pullback near confirmed swing low.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80.0
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            3,
+            4,
+            5
+          ],
+          "min_h1_trend_direction": 0,
+          "min_distance_from_zigzag_low_pips": -1800.0,
+          "max_distance_from_zigzag_low_pips": 2500.0,
+          "min_rsi": 34.0,
+          "max_rsi": 72.0,
+          "min_gmma_distance": -250.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_DC_NOFRI_SHORT",
+        "symbol": "XAUUSD",
+        "side": "short",
+        "profile": "active_1500_800_h32",
+        "family": "xau_sell",
+        "description": "XAU short context around DC no-Friday low-volatility continuation.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80.0
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_id": 5,
+          "max_session_volatility_percentile": 0.6,
+          "max_gmma_distance": 100.0,
+          "max_gmma_slope": 3.0,
+          "max_rsi": 62.0,
+          "exclude_friday": true
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_ACTIVE_BREAKDOWN_SHORT",
+        "symbol": "XAUUSD",
+        "side": "short",
+        "profile": "active_1500_800_h32",
+        "family": "xau_sell",
+        "description": "XAU short discovery context: active session breakdown below Asia low or negative session return.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80.0
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "max_distance_from_asia_low_pips": 300.0,
+          "max_current_session_return_so_far_pips": 600.0,
+          "max_rsi": 66.0,
+          "max_gmma_slope": 6.0,
+          "min_atr_regime": 1,
+          "max_atr_regime": 4,
+          "exclude_friday": true
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_SHORT_REVERSAL",
+        "symbol": "XAUUSD",
+        "side": "short",
+        "profile": "active_1500_800_h32",
+        "family": "xau_sell",
+        "description": "XAU short discovery context: reversal/weakness near confirmed swing high.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80.0
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "min_distance_from_zigzag_high_pips": -1800.0,
+          "max_distance_from_zigzag_high_pips": 700.0,
+          "min_rsi": 46.0,
+          "max_gmma_slope": 6.0,
+          "exclude_friday": true
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_BUY_MOMENTUM_OVERLAP",
+        "symbol": "EURUSD",
+        "side": "long",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_buy_redesign",
+        "description": "Redesigned EURUSD buy: overlap/late-overlap momentum after Asia-high reclaim; distinct from pullback setups.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "min_distance_from_asia_high_pips": 0.0,
+          "min_rsi": 45.0,
+          "max_rsi": 70.0,
+          "min_gmma_distance": 0.0,
+          "min_gmma_slope": -2.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_BUY_REL_STRENGTH",
+        "symbol": "EURUSD",
+        "side": "long",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_buy_redesign",
+        "description": "Redesigned EURUSD buy: relative-strength continuation using normalized market_x/market_y, not Asia-low pullback.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            3,
+            4,
+            5
+          ],
+          "min_market_x": 0.0,
+          "min_market_y": -1.0,
+          "min_rsi": 40.0,
+          "max_rsi": 66.0,
+          "min_gmma_distance": -20.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_SELL_LONDON_BREAKDOWN",
+        "symbol": "EURUSD",
+        "side": "short",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_sell_redesign",
+        "description": "Redesigned EURUSD sell: London/overlap bearish breakdown, different from late-NY exhaustion.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            3,
+            4
+          ],
+          "max_current_session_return_so_far_pips": 0.0,
+          "max_gmma_slope": 0.0,
+          "min_rsi": 35.0,
+          "max_rsi": 58.0,
+          "max_gmma_distance": 30.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "EUR_SELL_H1DOWN_CONT",
+        "symbol": "EURUSD",
+        "side": "short",
+        "profile": "fast_15_8_h16",
+        "family": "eurusd_sell_redesign",
+        "description": "Redesigned EURUSD sell: H1 downtrend continuation across London/overlap, separate from overbought late-NY shorts.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "EURUSD": 1.3
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            3,
+            4,
+            5
+          ],
+          "max_h1_trend_direction": 0,
+          "max_gmma_distance": 20.0,
+          "min_rsi": 30.0,
+          "max_rsi": 60.0,
+          "max_gmma_slope": 1.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_BUY_MOMENTUM_CONT",
+        "symbol": "XAUUSD",
+        "side": "long",
+        "profile": "runner_2200_1100_h40",
+        "family": "xauusd_buy_redesign",
+        "description": "Redesigned XAU buy: broad H1-up momentum continuation; candidate replacement for weak/sparse breakout-pullback.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "min_h1_trend_direction": 0,
+          "min_gmma_distance": -40.0,
+          "min_gmma_slope": -2.0,
+          "min_rsi": 38.0,
+          "max_rsi": 68.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_BUY_DXY_TREND",
+        "symbol": "XAUUSD",
+        "side": "long",
+        "profile": "runner_2200_1100_h40",
+        "family": "xauusd_buy_redesign",
+        "description": "Redesigned XAU buy: H1-up plus supportive inverse-DXY/relative context; distinct from Asia-low rejection.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "min_dxy_inverse_zscore_20": -1.0,
+          "min_h1_trend_direction": 0,
+          "min_rsi": 38.0,
+          "max_rsi": 70.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_SELL_ASIA_LOW_FAIL",
+        "symbol": "XAUUSD",
+        "side": "short",
+        "profile": "active_1500_800_h32",
+        "family": "xauusd_sell_redesign",
+        "description": "Redesigned XAU sell: Asia-low failure/breakdown; replacement candidate for sparse active-breakdown context.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "max_distance_from_asia_low_pips": 0.0,
+          "max_rsi": 62.0,
+          "max_gmma_slope": 3.0,
+          "exclude_friday": true
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_SELL_H1DOWN_CONT",
+        "symbol": "XAUUSD",
+        "side": "short",
+        "profile": "active_1500_800_h32",
+        "family": "xauusd_sell_redesign",
+        "description": "Redesigned XAU sell: H1-down continuation; distinct from DC/no-Friday and reversal structures.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "max_h1_trend_direction": 0,
+          "min_rsi": 25.0,
+          "max_rsi": 62.0,
+          "max_gmma_distance": 120.0,
+          "max_gmma_slope": 3.0,
+          "exclude_friday": false
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_BUY_ASIA_HIGH_RECLAIM_DXY",
+        "symbol": "XAUUSD",
+        "side": "long",
+        "profile": "runner_2200_1100_h40",
+        "family": "xauusd_buy_redesign",
+        "description": "Redesigned XAU buy: Asia-high reclaim with supportive inverse-DXY context; distinct from H1-up and broad momentum continuation.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "min_distance_from_asia_high_pips": -250.0,
+          "min_dxy_inverse_zscore_20": -0.5,
+          "min_h1_trend_direction": 0,
+          "min_rsi": 40.0,
+          "max_rsi": 72.0,
+          "min_gmma_slope": -3.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_BUY_LONDON_PULLBACK_RECLAIM",
+        "symbol": "XAUUSD",
+        "side": "long",
+        "profile": "runner_2200_1100_h40",
+        "family": "xauusd_buy_redesign",
+        "description": "Redesigned XAU buy: London/early-overlap pullback reclaim around zigzag-low context; distinct from DXY trend and momentum continuation.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            3,
+            4
+          ],
+          "min_h1_trend_direction": 0,
+          "min_distance_from_zigzag_low_pips": -1200.0,
+          "max_distance_from_zigzag_low_pips": 1600.0,
+          "min_rsi": 32.0,
+          "max_rsi": 64.0,
+          "min_gmma_slope": -6.0
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_SELL_DXY_PRESSURE",
+        "symbol": "XAUUSD",
+        "side": "short",
+        "profile": "active_1500_800_h32",
+        "family": "xauusd_sell_redesign",
+        "description": "Redesigned XAU sell: USD-strength pressure via weak inverse-DXY with non-positive H1 trend; distinct from DC/no-Friday and reversal.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            4,
+            5
+          ],
+          "max_dxy_inverse_zscore_20": 0.25,
+          "max_h1_trend_direction": 0,
+          "min_rsi": 30.0,
+          "max_rsi": 62.0,
+          "max_gmma_distance": 160.0,
+          "max_gmma_slope": 3.0,
+          "exclude_friday": false
+        }
+      },
+      {
+        "enabled": true,
+        "setup_id": "XAU_SELL_LONDON_REJECTION",
+        "symbol": "XAUUSD",
+        "side": "short",
+        "profile": "active_1500_800_h32",
+        "family": "xauusd_sell_redesign",
+        "description": "Redesigned XAU sell: London/early-overlap rejection near zigzag-high context; distinct from H1-down continuation and DXY pressure.",
+        "candidate_filter": {
+          "enabled": true,
+          "preset": "setup_specific_v1",
+          "base": {
+            "max_spread_pips_by_symbol": {
+              "XAUUSD": 80
+            }
+          },
+          "min_keep_ratio": 0.001
+        },
+        "setup_params": {
+          "session_block_ids": [
+            3,
+            4
+          ],
+          "min_distance_from_zigzag_high_pips": -1400.0,
+          "max_distance_from_zigzag_high_pips": 900.0,
+          "min_rsi": 46.0,
+          "max_rsi": 75.0,
+          "max_gmma_slope": 5.0,
+          "min_atr_regime": 1,
+          "max_atr_regime": 4,
+          "exclude_friday": true
+        }
+      }
+    ],
+    "candidate_inventory_mode": "repair_and_redesign",
+    "redesign_note": "Weak/sparse setups are not only relaxed; alternative, structurally different setup hypotheses are added for replacement testing."
+  },
+  "setup_inventory_portfolio": {
+    "enabled": true,
+    "output_dir": "data/inventory_portfolio_eval",
+    "best_policy_file": "data/setup_inventory/setup_best_viable_policy_by_setup.csv",
+    "min_loaded_ratio": 1.0,
+    "core_setup_ids": [
+      "EUR_BUY_MOMENTUM_OVERLAP",
+      "EUR_L4_NOT2_BUY",
+      "EUR_AH_ATR2_BUY",
+      "EUR_LONDON_WEAK_SHORT",
+      "EUR_SELL_H1DOWN_CONT",
+      "EUR_SELL_LONDON_BREAKDOWN",
+      "XAU_H1UP_BUY",
+      "XAU_BUY_DXY_TREND",
+      "XAU_BUY_ASIA_HIGH_RECLAIM_DXY",
+      "XAU_SHORT_REVERSAL",
+      "XAU_SELL_LONDON_REJECTION",
+      "XAU_SELL_H1DOWN_CONT"
+    ],
+    "backup_setup_ids": [
+      "XAU_SELL_DXY_PRESSURE"
+    ],
+    "notes": "Portfolio evaluation from setup-inventory best viable policies. The 12-core portfolio targets 3 setup candidates for each symbol/side: EURUSD long, EURUSD short, XAUUSD long, XAUUSD short."
   }
 }
