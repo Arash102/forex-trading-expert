@@ -130,7 +130,14 @@ def summarize_trade_pnl(
             "avg_loss_pips": float("nan"),
             "payoff_ratio": float("nan"),
             "profit_factor": float("nan"),
+            "avg_win_R": float("nan"),
+            "avg_loss_R": float("nan"),
+            "payoff_ratio_R": float("nan"),
+            "profit_factor_R": float("nan"),
+            "gross_profit_R": 0.0,
+            "gross_loss_R": 0.0,
             "expectancy_pips": float("nan"),
+            "expectancy_R": float("nan"),
             "net_pips": 0.0,
             "net_R": 0.0,
             "net_dollars": 0.0,
@@ -139,6 +146,8 @@ def summarize_trade_pnl(
             "max_drawdown_pct": 0.0,
             "drawdown_duration_trades": 0.0,
             "drawdown_duration_days": float("nan"),
+            "drawdown_duration_trades_R": 0.0,
+            "drawdown_duration_days_R": float("nan"),
             "longest_losing_streak": 0.0,
             "trades_per_month": 0.0,
             "risk_per_trade_pct": float(risk_per_trade * 100.0),
@@ -160,6 +169,15 @@ def summarize_trade_pnl(
     avg_loss = float(-losses.mean()) if len(losses) else float("nan")
     pr = avg_win / avg_loss if np.isfinite(avg_win) and np.isfinite(avg_loss) and avg_loss > 0 else float("nan")
 
+    r_wins = r[r > 0]
+    r_losses = r[r < 0]
+    gross_profit_R = float(r_wins.sum())
+    gross_loss_R = float(-r_losses.sum())
+    profit_factor_R = gross_profit_R / gross_loss_R if gross_loss_R > 0 else (float("inf") if gross_profit_R > 0 else float("nan"))
+    avg_win_R = float(r_wins.mean()) if len(r_wins) else float("nan")
+    avg_loss_R = float(-r_losses.mean()) if len(r_losses) else float("nan")
+    payoff_ratio_R = avg_win_R / avg_loss_R if np.isfinite(avg_win_R) and np.isfinite(avg_loss_R) and avg_loss_R > 0 else float("nan")
+
     equity_pips = pnl.cumsum().to_numpy(dtype=float)
     equity_r = r.cumsum().to_numpy(dtype=float)
     equity_dollars = float(initial_capital) + (r * float(initial_capital) * float(risk_per_trade)).cumsum().to_numpy(dtype=float)
@@ -168,11 +186,17 @@ def summarize_trade_pnl(
     dd_dollars = max_drawdown_stats(equity_dollars)
 
     duration_days = float("nan")
-    if date_col in df.columns and dd_pips.peak_index >= 0 and dd_pips.trough_index >= 0:
+    duration_days_R = float("nan")
+    if date_col in df.columns:
         dates = pd.to_datetime(df[date_col], errors="coerce")
-        end_idx = dd_pips.recovery_index if dd_pips.recovery_index is not None else len(df) - 1
-        if pd.notna(dates.iloc[dd_pips.peak_index]) and pd.notna(dates.iloc[end_idx]):
-            duration_days = float((dates.iloc[end_idx] - dates.iloc[dd_pips.peak_index]).total_seconds() / 86400.0)
+        if dd_pips.peak_index >= 0 and dd_pips.trough_index >= 0:
+            end_idx = dd_pips.recovery_index if dd_pips.recovery_index is not None else len(df) - 1
+            if pd.notna(dates.iloc[dd_pips.peak_index]) and pd.notna(dates.iloc[end_idx]):
+                duration_days = float((dates.iloc[end_idx] - dates.iloc[dd_pips.peak_index]).total_seconds() / 86400.0)
+        if dd_dollars.peak_index >= 0 and dd_dollars.trough_index >= 0:
+            end_idx_r = dd_dollars.recovery_index if dd_dollars.recovery_index is not None else len(df) - 1
+            if pd.notna(dates.iloc[dd_dollars.peak_index]) and pd.notna(dates.iloc[end_idx_r]):
+                duration_days_R = float((dates.iloc[end_idx_r] - dates.iloc[dd_dollars.peak_index]).total_seconds() / 86400.0)
 
     months = float("nan")
     if date_col in df.columns:
@@ -190,6 +214,12 @@ def summarize_trade_pnl(
         "profit_factor": pf,
         "gross_profit_pips": gross_profit,
         "gross_loss_pips": gross_loss,
+        "avg_win_R": avg_win_R,
+        "avg_loss_R": avg_loss_R,
+        "payoff_ratio_R": payoff_ratio_R,
+        "profit_factor_R": profit_factor_R,
+        "gross_profit_R": gross_profit_R,
+        "gross_loss_R": gross_loss_R,
         "expectancy_pips": float(pnl.mean()),
         "expectancy_R": float(r.mean()),
         "net_pips": float(pnl.sum()),
@@ -202,6 +232,8 @@ def summarize_trade_pnl(
         "max_drawdown_pct": float(dd_dollars.max_drawdown / float(initial_capital)) if initial_capital else float("nan"),
         "drawdown_duration_trades": float(dd_pips.max_drawdown_duration_periods),
         "drawdown_duration_days": duration_days,
+        "drawdown_duration_trades_R": float(dd_dollars.max_drawdown_duration_periods),
+        "drawdown_duration_days_R": duration_days_R,
         "longest_losing_streak": float(longest_losing_streak(pnl)),
         "trades_per_month": float(len(df) / months) if np.isfinite(months) else float("nan"),
         "risk_per_trade_pct": float(risk_per_trade * 100.0),
