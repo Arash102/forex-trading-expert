@@ -91,7 +91,7 @@
     "random_seed": 42,
     "threshold": 0.3,
     "objective_metric": "average_precision",
-    "optuna_trials": 30,
+    "optuna_trials": 15,
     "inner_valid_fraction": 0.2,
     "min_inner_valid_bars": 500,
     "scale_pos_weight": "auto",
@@ -1653,5 +1653,89 @@
       "XAU_SELL_DXY_PRESSURE"
     ],
     "notes": "Portfolio evaluation from setup-inventory best viable policies. The 12-core portfolio targets 3 setup candidates for each symbol/side: EURUSD long, EURUSD short, XAUUSD long, XAUUSD short."
+  },
+  "inventory_ror_optimizer": {
+    "enabled": true,
+    "source_dir": "data/inventory_portfolio_eval",
+    "output_dir": "data/inventory_ror_optimization",
+    "initial_capital": 1000.0,
+    "risk_per_trade_grid": [
+      0.005,
+      0.0075,
+      0.01,
+      0.0125,
+      0.015,
+      0.02
+    ],
+    "ruin_drawdowns": [
+      0.25,
+      0.3
+    ],
+    "risk_of_ruin_simulations": 5000,
+    "random_seed": 42,
+    "risk_plans": [
+      {
+        "name": "uniform",
+        "description": "Same fixed fractional risk for every selected trade.",
+        "symbol_weights": {},
+        "side_weights": {},
+        "component_weights": {}
+      },
+      {
+        "name": "xau_75pct",
+        "description": "Keep EUR risk unchanged and reduce XAUUSD trade risk to 75%.",
+        "symbol_weights": {
+          "XAUUSD": 0.75
+        },
+        "side_weights": {},
+        "component_weights": {}
+      },
+      {
+        "name": "xau_50pct",
+        "description": "Keep EUR risk unchanged and reduce XAUUSD trade risk to 50%.",
+        "symbol_weights": {
+          "XAUUSD": 0.5
+        },
+        "side_weights": {},
+        "component_weights": {}
+      },
+      {
+        "name": "short_75pct",
+        "description": "Reduce all short-side risk to 75% for downside-cluster diagnostics.",
+        "symbol_weights": {},
+        "side_weights": {
+          "short": 0.75
+        },
+        "component_weights": {}
+      },
+      {
+        "name": "xau_sell_50pct",
+        "description": "Reduce only XAUUSD short-side exposure to 50%.",
+        "symbol_side_weights": {
+          "XAUUSD|short": 0.5
+        },
+        "symbol_weights": {},
+        "side_weights": {},
+        "component_weights": {}
+      },
+      {
+        "name": "asia_reclaim_half",
+        "description": "Reduce the weakest/conditional XAU buy setup risk to 50%.",
+        "component_weights": {
+          "XAU_BUY_ASIA_HIGH_RECLAIM_DXY": 0.5
+        },
+        "symbol_weights": {},
+        "side_weights": {}
+      }
+    ],
+    "decision_filters": {
+      "min_trades": 60,
+      "min_profit_factor_R": 1.5,
+      "max_risk_of_ruin_dd_25pct": 0.01,
+      "min_positive_folds": 6,
+      "require_all_components_loaded": true,
+      "require_side_complete_3x3": false
+    },
+    "notes": "Post-portfolio risk-of-ruin optimizer. It does not change entry logic; it sweeps risk per trade and optional exposure weights on already selected inventory portfolio trades."
   }
 }
