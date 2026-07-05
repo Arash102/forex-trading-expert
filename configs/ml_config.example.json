@@ -91,7 +91,7 @@
     "random_seed": 42,
     "threshold": 0.3,
     "objective_metric": "average_precision",
-    "optuna_trials": 15,
+    "optuna_trials": 30,
     "inner_valid_fraction": 0.2,
     "min_inner_valid_bars": 500,
     "scale_pos_weight": "auto",
@@ -1737,5 +1737,33 @@
       "require_side_complete_3x3": false
     },
     "notes": "Post-portfolio risk-of-ruin optimizer. It does not change entry logic; it sweeps risk per trade and optional exposure weights on already selected inventory portfolio trades."
+  },
+  "final_strategy_report": {
+    "enabled": true,
+    "output_dir": "data/final_strategy_report",
+    "strategy_id": "debco_core12_ror_v0_1_12",
+    "selected_portfolio": "ip01_core_12_side_complete",
+    "selected_risk_policy": "daily_loss_guard",
+    "selected_risk_plan": "xau_sell_50pct",
+    "selected_risk_per_trade": 0.01,
+    "comparison_risk_per_trades": [
+      0.0075,
+      0.01,
+      0.015
+    ],
+    "initial_capital": 1000.0,
+    "ror_summary_file": "data/inventory_ror_optimization/ror_reduction_summary.csv",
+    "ror_recommended_file": "data/inventory_ror_optimization/recommended_risk_plan.csv",
+    "component_stress_file": "data/inventory_ror_optimization/ror_component_stress_summary.csv",
+    "setup_best_policy_file": "data/setup_inventory/setup_best_viable_policy_by_setup.csv",
+    "acceptance_criteria": {
+      "min_profit_factor_R": 1.5,
+      "max_risk_of_ruin_dd_25pct": 0.01,
+      "min_positive_folds": 6,
+      "require_all_components_loaded": true,
+      "require_side_complete_3x3": true
+    },
+    "forward_test_recommendation": "Use 0.75% to 1.0% base risk per trade for paper/demo forward test. Treat 1.5% as research/aggressive only until forward stability is proven.",
+    "notes": "Final strategy report generator for the selected 12-setup inventory portfolio after ROR optimization. It does not train models or change trading logic."
   }
 }
