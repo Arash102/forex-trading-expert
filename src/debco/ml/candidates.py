@@ -478,6 +478,391 @@ def _rule_context_mask(x: pd.DataFrame, *, symbol: str, side: str, cfg: Mapping[
         return _xau_sell_context_mask(x, cfg)
     return pd.Series(False, index=x.index)
 
+
+# -----------------------------------------------------------------------------
+# Setup-specific candidate contexts for v0.1.10 setup edge inventory
+# -----------------------------------------------------------------------------
+
+def _job_is(symbol: str, side: str, expected_symbol: str, expected_side: str) -> bool:
+    return symbol.upper() == expected_symbol.upper() and side == expected_side
+
+
+def _eurusd_ah_atr2_buy_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_ah_atr2_buy_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "distance_from_asia_high_pips") >= float(c.get("min_distance_from_asia_high_pips", -2.0))
+    mask &= _num(x, "london_expansion_vs_asia") >= float(c.get("min_london_expansion_vs_asia", 0.0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 42.0), c.get("max_rsi", 72.0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", -15.0))
+    mask &= _series_between(_num(x, "atr_regime"), c.get("min_atr_regime", 1), c.get("max_atr_regime", 4))
+    if c.get("min_body_ratio", None) is not None:
+        mask &= _num(x, "body_ratio") >= float(c.get("min_body_ratio"))
+    return mask
+
+
+def _eurusd_l3_r52_buy_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_l3_r52_buy_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [3, 4])])
+    mask &= _series_between(
+        _num(x, "distance_from_asia_low_pips"),
+        c.get("min_distance_from_asia_low_pips", -2.0),
+        c.get("max_distance_from_asia_low_pips", 14.0),
+    )
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 30.0), c.get("max_rsi", 58.0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", -25.0))
+    if c.get("max_day_position_pct", None) is not None:
+        mask &= _num(x, "day_position_pct") <= float(c["max_day_position_pct"])
+    return mask
+
+
+def _eurusd_l4_not2_buy_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_l4_not2_buy_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _series_between(
+        _num(x, "distance_from_confirmed_zigzag_low_pips"),
+        c.get("min_distance_from_zigzag_low_pips", -2.0),
+        c.get("max_distance_from_zigzag_low_pips", 22.0),
+    )
+    mask &= _num(x, "rsi") <= float(c.get("max_rsi", 66.0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", -40.0))
+    if bool(c.get("require_h1_non_negative", True)):
+        mask &= _num(x, "h1_trend_direction") >= 0
+    if c.get("excluded_market_regime", None) is not None:
+        mask &= _num(x, "market_regime") != int(c.get("excluded_market_regime"))
+    return mask
+
+
+def _eurusd_lateny_tuefri_short_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_lateny_tuefri_short_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id") == int(c.get("session_block_id", 6))
+    mask &= _num(x, "day_of_week").isin([int(v) for v in c.get("day_of_week", [1, 4])])
+    mask &= _num(x, "rsi") >= float(c.get("min_rsi", 55.0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", -5.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 3.0))
+    return mask
+
+
+def _eurusd_lateny_atrhi_short_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_lateny_atrhi_short_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id") == int(c.get("session_block_id", 6))
+    mask &= _num(x, "atr_regime") >= float(c.get("min_atr_regime", 3))
+    mask &= _num(x, "rsi") >= float(c.get("min_rsi", 55.0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", -5.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 4.0))
+    return mask
+
+
+def _eurusd_london_weak_short_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_london_weak_short_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id") == int(c.get("session_block_id", 3))
+    mask &= _num(x, "market_regime").isin([int(v) for v in c.get("market_regimes", [0, 1, 2, 3])])
+    mask &= _series_between(_num(x, "gmma_distance"), c.get("min_gmma_distance", 0.0), c.get("max_gmma_distance", 80.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 1.0))
+    mask &= _series_between(_num(x, "atr_regime"), c.get("min_atr_regime", 1), c.get("max_atr_regime", 4))
+    return mask
+
+
+def _xau_asial_reject_buy_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_asial_reject_buy_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "distance_from_asia_low_pips") <= float(c.get("max_distance_from_asia_low_pips", 250.0))
+    mask &= _num(x, "rsi") <= float(c.get("max_rsi", 45.0))
+    mask &= _num(x, "gmma_distance_slope") >= float(c.get("min_gmma_slope", -5.0))
+    if c.get("min_body_ratio", None) is not None:
+        mask &= _num(x, "body_ratio") >= float(c["min_body_ratio"])
+    return mask
+
+
+def _xau_h1up_buy_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_h1up_buy_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "h1_trend_direction") >= int(c.get("min_h1_trend_direction", 0))
+    mask &= _series_between(_num(x, "atr_regime"), c.get("min_atr_regime", 2), c.get("max_atr_regime", 4))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", 0.0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 40.0), c.get("max_rsi", 75.0))
+    return mask
+
+
+def _xau_buy_breakout_pullback_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_buy_breakout_pullback_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "h1_trend_direction") >= int(c.get("min_h1_trend_direction", 0))
+    mask &= _series_between(
+        _num(x, "distance_from_confirmed_zigzag_low_pips"),
+        c.get("min_distance_from_zigzag_low_pips", -100.0),
+        c.get("max_distance_from_zigzag_low_pips", 700.0),
+    )
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 35.0), c.get("max_rsi", 68.0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", -80.0))
+    return mask
+
+
+def _xau_dc_nofri_short_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_dc_nofri_short_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id") == int(c.get("session_block_id", 5))
+    mask &= _num(x, "session_volatility_percentile_240") <= float(c.get("max_session_volatility_percentile", 0.60))
+    mask &= _num(x, "gmma_distance") <= float(c.get("max_gmma_distance", 100.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 3.0))
+    mask &= _num(x, "rsi") <= float(c.get("max_rsi", 62.0))
+    if bool(c.get("exclude_friday", True)):
+        mask &= _num(x, "day_of_week") != 4
+    return mask
+
+
+def _xau_active_breakdown_short_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_active_breakdown_short_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    if c.get("max_distance_from_asia_low_pips", None) is not None:
+        mask &= _num(x, "distance_from_asia_low_pips") <= float(c["max_distance_from_asia_low_pips"])
+    if c.get("max_current_session_return_so_far_pips", None) is not None:
+        mask &= _num(x, "current_session_return_so_far_pips") <= float(c["max_current_session_return_so_far_pips"])
+    mask &= _num(x, "rsi") <= float(c.get("max_rsi", 60.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 2.0))
+    mask &= _series_between(_num(x, "atr_regime"), c.get("min_atr_regime", 1), c.get("max_atr_regime", 4))
+    if bool(c.get("exclude_friday", True)):
+        mask &= _num(x, "day_of_week") != 4
+    return mask
+
+
+def _xau_short_reversal_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_short_reversal_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [5])])
+    mask &= _series_between(
+        _num(x, "distance_from_confirmed_zigzag_high_pips"),
+        c.get("min_distance_from_zigzag_high_pips", -700.0),
+        c.get("max_distance_from_zigzag_high_pips", 100.0),
+    )
+    mask &= _num(x, "rsi") >= float(c.get("min_rsi", 50.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 2.0))
+    if bool(c.get("exclude_friday", True)):
+        mask &= _num(x, "day_of_week") != 4
+    return mask
+
+
+
+# -----------------------------------------------------------------------------
+# Redesign candidate contexts for v0.1.10 setup inventory
+# These are not relaxed versions of failed setups. They represent different
+# market hypotheses so weak setup slots can be replaced rather than over-tuned.
+# -----------------------------------------------------------------------------
+
+def _eurusd_buy_momentum_overlap_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_buy_momentum_overlap_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "distance_from_asia_high_pips") >= float(c.get("min_distance_from_asia_high_pips", 0.0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 45.0), c.get("max_rsi", 70.0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", 0.0))
+    mask &= _num(x, "gmma_distance_slope") >= float(c.get("min_gmma_slope", -2.0))
+    return mask
+
+
+def _eurusd_buy_relative_strength_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_buy_relative_strength_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [3, 4, 5])])
+    mask &= _num(x, "market_x") >= float(c.get("min_market_x", 0.0))
+    mask &= _num(x, "market_y") >= float(c.get("min_market_y", -1.0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 40.0), c.get("max_rsi", 66.0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", -20.0))
+    return mask
+
+
+def _eurusd_sell_london_breakdown_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_sell_london_breakdown_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [3, 4])])
+    mask &= _num(x, "current_session_return_so_far_pips") <= float(c.get("max_current_session_return_so_far_pips", 0.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 0.0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 35.0), c.get("max_rsi", 58.0))
+    mask &= _num(x, "gmma_distance") <= float(c.get("max_gmma_distance", 30.0))
+    return mask
+
+
+def _eurusd_sell_h1down_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("eurusd_sell_h1down_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [3, 4, 5])])
+    mask &= _num(x, "h1_trend_direction") <= int(c.get("max_h1_trend_direction", 0))
+    mask &= _num(x, "gmma_distance") <= float(c.get("max_gmma_distance", 20.0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 30.0), c.get("max_rsi", 60.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 1.0))
+    return mask
+
+
+def _xau_buy_momentum_cont_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_buy_momentum_cont_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "h1_trend_direction") >= int(c.get("min_h1_trend_direction", 0))
+    mask &= _num(x, "gmma_distance") >= float(c.get("min_gmma_distance", -40.0))
+    mask &= _num(x, "gmma_distance_slope") >= float(c.get("min_gmma_slope", -2.0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 38.0), c.get("max_rsi", 68.0))
+    return mask
+
+
+def _xau_buy_dxy_trend_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_buy_dxy_trend_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "dxy_inverse_zscore_20") >= float(c.get("min_dxy_inverse_zscore_20", -1.0))
+    mask &= _num(x, "h1_trend_direction") >= int(c.get("min_h1_trend_direction", 0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 38.0), c.get("max_rsi", 70.0))
+    return mask
+
+
+def _xau_sell_asia_low_fail_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_sell_asia_low_fail_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "distance_from_asia_low_pips") <= float(c.get("max_distance_from_asia_low_pips", 0.0))
+    mask &= _num(x, "rsi") <= float(c.get("max_rsi", 62.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 3.0))
+    if bool(c.get("exclude_friday", True)):
+        mask &= _num(x, "day_of_week") != 4
+    return mask
+
+
+def _xau_sell_h1down_cont_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_sell_h1down_cont_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "h1_trend_direction") <= int(c.get("max_h1_trend_direction", 0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 25.0), c.get("max_rsi", 62.0))
+    mask &= _num(x, "gmma_distance") <= float(c.get("max_gmma_distance", 120.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 3.0))
+    if bool(c.get("exclude_friday", False)):
+        mask &= _num(x, "day_of_week") != 4
+    return mask
+
+
+def _xau_buy_asia_high_reclaim_dxy_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_buy_asia_high_reclaim_dxy_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    mask &= _num(x, "distance_from_asia_high_pips") >= float(c.get("min_distance_from_asia_high_pips", -250.0))
+    mask &= _num(x, "dxy_inverse_zscore_20") >= float(c.get("min_dxy_inverse_zscore_20", -0.5))
+    mask &= _num(x, "h1_trend_direction") >= int(c.get("min_h1_trend_direction", 0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 40.0), c.get("max_rsi", 72.0))
+    mask &= _num(x, "gmma_distance_slope") >= float(c.get("min_gmma_slope", -3.0))
+    return mask
+
+
+def _xau_buy_london_pullback_reclaim_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_buy_london_pullback_reclaim_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [3, 4])])
+    mask &= _num(x, "h1_trend_direction") >= int(c.get("min_h1_trend_direction", 0))
+    mask &= _series_between(
+        _num(x, "distance_from_confirmed_zigzag_low_pips"),
+        c.get("min_distance_from_zigzag_low_pips", -1200.0),
+        c.get("max_distance_from_zigzag_low_pips", 1600.0),
+    )
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 32.0), c.get("max_rsi", 64.0))
+    mask &= _num(x, "gmma_distance_slope") >= float(c.get("min_gmma_slope", -6.0))
+    return mask
+
+
+def _xau_sell_dxy_pressure_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_sell_dxy_pressure_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [4, 5])])
+    # dxy_inverse weak/negative means USD strength pressure on XAU.
+    mask &= _num(x, "dxy_inverse_zscore_20") <= float(c.get("max_dxy_inverse_zscore_20", 0.25))
+    mask &= _num(x, "h1_trend_direction") <= int(c.get("max_h1_trend_direction", 0))
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 30.0), c.get("max_rsi", 62.0))
+    mask &= _num(x, "gmma_distance") <= float(c.get("max_gmma_distance", 160.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 3.0))
+    if bool(c.get("exclude_friday", False)):
+        mask &= _num(x, "day_of_week") != 4
+    return mask
+
+
+def _xau_sell_london_rejection_context_mask(x: pd.DataFrame, cfg: Mapping[str, Any]) -> pd.Series:
+    c = cfg.get("setup_params", cfg.get("xau_sell_london_rejection_context", {}))
+    mask = pd.Series(True, index=x.index)
+    mask &= _num(x, "session_block_id").isin([int(v) for v in c.get("session_block_ids", [3, 4])])
+    mask &= _series_between(
+        _num(x, "distance_from_confirmed_zigzag_high_pips"),
+        c.get("min_distance_from_zigzag_high_pips", -1400.0),
+        c.get("max_distance_from_zigzag_high_pips", 900.0),
+    )
+    mask &= _series_between(_num(x, "rsi"), c.get("min_rsi", 46.0), c.get("max_rsi", 75.0))
+    mask &= _num(x, "gmma_distance_slope") <= float(c.get("max_gmma_slope", 5.0))
+    mask &= _series_between(_num(x, "atr_regime"), c.get("min_atr_regime", 1), c.get("max_atr_regime", 4))
+    if bool(c.get("exclude_friday", True)):
+        mask &= _num(x, "day_of_week") != 4
+    return mask
+
+
+
+def _setup_specific_mask(x: pd.DataFrame, *, symbol: str, side: str, cfg: Mapping[str, Any]) -> pd.Series:
+    setup_id = str(cfg.get("setup_id", cfg.get("setup", ""))).upper()
+    if setup_id == "EUR_AH_ATR2_BUY" and _job_is(symbol, side, "EURUSD", "long"):
+        return _eurusd_ah_atr2_buy_context_mask(x, cfg)
+    if setup_id == "EUR_L3_R52_BUY" and _job_is(symbol, side, "EURUSD", "long"):
+        return _eurusd_l3_r52_buy_context_mask(x, cfg)
+    if setup_id == "EUR_L4_NOT2_BUY" and _job_is(symbol, side, "EURUSD", "long"):
+        return _eurusd_l4_not2_buy_context_mask(x, cfg)
+    if setup_id == "EUR_LATENY_TUEFRI_SHORT" and _job_is(symbol, side, "EURUSD", "short"):
+        return _eurusd_lateny_tuefri_short_context_mask(x, cfg)
+    if setup_id == "EUR_LATENY_ATRHI_SHORT" and _job_is(symbol, side, "EURUSD", "short"):
+        return _eurusd_lateny_atrhi_short_context_mask(x, cfg)
+    if setup_id == "EUR_LONDON_WEAK_SHORT" and _job_is(symbol, side, "EURUSD", "short"):
+        return _eurusd_london_weak_short_context_mask(x, cfg)
+    if setup_id == "XAU_ASIAL_REJECT_BUY" and _job_is(symbol, side, "XAUUSD", "long"):
+        return _xau_asial_reject_buy_context_mask(x, cfg)
+    if setup_id == "XAU_H1UP_BUY" and _job_is(symbol, side, "XAUUSD", "long"):
+        return _xau_h1up_buy_context_mask(x, cfg)
+    if setup_id == "XAU_BUY_BREAKOUT_PULLBACK" and _job_is(symbol, side, "XAUUSD", "long"):
+        return _xau_buy_breakout_pullback_context_mask(x, cfg)
+    if setup_id == "XAU_DC_NOFRI_SHORT" and _job_is(symbol, side, "XAUUSD", "short"):
+        return _xau_dc_nofri_short_context_mask(x, cfg)
+    if setup_id == "XAU_ACTIVE_BREAKDOWN_SHORT" and _job_is(symbol, side, "XAUUSD", "short"):
+        return _xau_active_breakdown_short_context_mask(x, cfg)
+    if setup_id == "XAU_SHORT_REVERSAL" and _job_is(symbol, side, "XAUUSD", "short"):
+        return _xau_short_reversal_context_mask(x, cfg)
+
+    if setup_id == "EUR_BUY_MOMENTUM_OVERLAP" and _job_is(symbol, side, "EURUSD", "long"):
+        return _eurusd_buy_momentum_overlap_context_mask(x, cfg)
+    if setup_id == "EUR_BUY_REL_STRENGTH" and _job_is(symbol, side, "EURUSD", "long"):
+        return _eurusd_buy_relative_strength_context_mask(x, cfg)
+    if setup_id == "EUR_SELL_LONDON_BREAKDOWN" and _job_is(symbol, side, "EURUSD", "short"):
+        return _eurusd_sell_london_breakdown_context_mask(x, cfg)
+    if setup_id == "EUR_SELL_H1DOWN_CONT" and _job_is(symbol, side, "EURUSD", "short"):
+        return _eurusd_sell_h1down_context_mask(x, cfg)
+    if setup_id == "XAU_BUY_MOMENTUM_CONT" and _job_is(symbol, side, "XAUUSD", "long"):
+        return _xau_buy_momentum_cont_context_mask(x, cfg)
+    if setup_id == "XAU_BUY_DXY_TREND" and _job_is(symbol, side, "XAUUSD", "long"):
+        return _xau_buy_dxy_trend_context_mask(x, cfg)
+    if setup_id == "XAU_SELL_ASIA_LOW_FAIL" and _job_is(symbol, side, "XAUUSD", "short"):
+        return _xau_sell_asia_low_fail_context_mask(x, cfg)
+    if setup_id == "XAU_SELL_H1DOWN_CONT" and _job_is(symbol, side, "XAUUSD", "short"):
+        return _xau_sell_h1down_cont_context_mask(x, cfg)
+
+    if setup_id == "XAU_BUY_ASIA_HIGH_RECLAIM_DXY" and _job_is(symbol, side, "XAUUSD", "long"):
+        return _xau_buy_asia_high_reclaim_dxy_context_mask(x, cfg)
+    if setup_id == "XAU_BUY_LONDON_PULLBACK_RECLAIM" and _job_is(symbol, side, "XAUUSD", "long"):
+        return _xau_buy_london_pullback_reclaim_context_mask(x, cfg)
+    if setup_id == "XAU_SELL_DXY_PRESSURE" and _job_is(symbol, side, "XAUUSD", "short"):
+        return _xau_sell_dxy_pressure_context_mask(x, cfg)
+    if setup_id == "XAU_SELL_LONDON_REJECTION" and _job_is(symbol, side, "XAUUSD", "short"):
+        return _xau_sell_london_rejection_context_mask(x, cfg)
+    return pd.Series(False, index=x.index)
+
+
 def candidate_mask_for_job(x: pd.DataFrame, *, symbol: str, side: str, config: Mapping[str, Any]) -> pd.Series:
     """Return candidate rows for candidate-based/meta-label training.
 
@@ -508,6 +893,8 @@ def candidate_mask_for_job(x: pd.DataFrame, *, symbol: str, side: str, config: M
         mask &= _rule_context_mask(x, symbol=symbol, side=side, cfg=cfg)
     elif preset == "rule_inspired_core_or_context_v1":
         mask &= (_rule_inspired_mask(x, symbol=symbol, side=side, cfg=cfg) | _rule_context_mask(x, symbol=symbol, side=side, cfg=cfg))
+    elif preset == "setup_specific_v1":
+        mask &= _setup_specific_mask(x, symbol=symbol, side=side, cfg=cfg)
     elif preset == "eurusd_buy_playbook_v1":
         mask &= _eurusd_buy_playbook_mask(x, cfg) if symbol.upper() == "EURUSD" and side == "long" else False
     elif preset == "eurusd_sell_core_v1":
