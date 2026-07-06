@@ -1,0 +1,71 @@
+{
+  "router_id": "debco_forward_demo_v0_1_13a",
+  "mode": "dry_run",
+  "live_execution_spec_path": "data/final_strategy_report/live_execution_spec.json",
+  "state_db_path": "data/live_state/forward_demo.sqlite",
+  "chart_event_dir": "data/live_state/chart_events",
+  "symbols": ["EURUSD", "XAUUSD"],
+  "timeframe": "M15",
+  "mt5": {
+    "enabled": true,
+    "terminal_path": null,
+    "login": null,
+    "password": null,
+    "server": null,
+    "history_bars": 5000,
+    "initialize_timeout_seconds": 30
+  },
+  "polling": {
+    "normal_poll_seconds": 5.0,
+    "fast_poll_seconds": 0.5,
+    "pre_bar_fast_window_seconds": 8.0,
+    "post_bar_fast_window_seconds": 10.0,
+    "max_new_bar_wait_seconds": 12.0
+  },
+  "execution": {
+    "dry_run": true,
+    "enable_orders": false,
+    "entry_mode": "closed_bar_then_new_bar_market",
+    "risk_per_trade": 0.01,
+    "risk_plan": "xau_sell_50pct",
+    "horizon_exit_enabled": true,
+    "one_signal_per_setup_per_bar": true
+  },
+  "safety": {
+    "max_orders_per_bar_per_setup": 1,
+    "max_open_trades": 8,
+    "max_trades_per_day": 8,
+    "max_trades_per_symbol_per_day": 4,
+    "stop_after_daily_losses": 2
+  },
+  "setup_magic_numbers": {
+    "EUR_BUY_MOMENTUM_OVERLAP": 130101,
+    "EUR_L4_NOT2_BUY": 130102,
+    "EUR_AH_ATR2_BUY": 130103,
+    "EUR_LONDON_WEAK_SHORT": 130201,
+    "EUR_SELL_H1DOWN_CONT": 130202,
+    "EUR_SELL_LONDON_BREAKDOWN": 130203,
+    "XAU_H1UP_BUY": 130301,
+    "XAU_BUY_DXY_TREND": 130302,
+    "XAU_BUY_ASIA_HIGH_RECLAIM_DXY": 130303,
+    "XAU_SHORT_REVERSAL": 130401,
+    "XAU_SELL_LONDON_REJECTION": 130402,
+    "XAU_SELL_H1DOWN_CONT": 130403
+  },
+  "chart_markers": {
+    "enabled": true,
+    "entry_color": "lime",
+    "exit_color": "red",
+    "entry_shape": "circle",
+    "show_setup_name": true,
+    "screenshot_on_entry": true,
+    "screenshot_on_exit": true,
+    "screenshot_width": 1280,
+    "screenshot_height": 720
+  },
+  "logging": {
+    "level": "INFO",
+    "print_heartbeat": true
+  },
+  "notes": "v0.1.13a is a dry-run forward-demo router skeleton. Python owns timing, state, signal/execution decisions, and event files. MT5 is data/order transport. MQL helper is chart marker/screenshot only."
+}

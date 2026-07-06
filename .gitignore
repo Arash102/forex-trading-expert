@@ -24,3 +24,6 @@ logs/
 *.pkl
 *.joblib
 *.sqlite
+
+# Python packaging artifacts
+*.egg-info/
