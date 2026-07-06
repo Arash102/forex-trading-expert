@@ -1,10 +1,13 @@
 {
-  "router_id": "debco_forward_demo_v0_1_13a",
+  "router_id": "debco_forward_demo_v0_1_13b",
   "mode": "dry_run",
   "live_execution_spec_path": "data/final_strategy_report/live_execution_spec.json",
   "state_db_path": "data/live_state/forward_demo.sqlite",
   "chart_event_dir": "data/live_state/chart_events",
-  "symbols": ["EURUSD", "XAUUSD"],
+  "symbols": [
+    "EURUSD",
+    "XAUUSD"
+  ],
   "timeframe": "M15",
   "mt5": {
     "enabled": true,
@@ -67,5 +70,25 @@
     "level": "INFO",
     "print_heartbeat": true
   },
-  "notes": "v0.1.13a is a dry-run forward-demo router skeleton. Python owns timing, state, signal/execution decisions, and event files. MT5 is data/order transport. MQL helper is chart marker/screenshot only."
+  "notes": "v0.1.13b adds live feature/model inference wiring. Orders remain dry-run by default. Python owns timing, features, model inference, risk decision, state, and event files. MT5 is data/order transport. MQL helper is chart marker/screenshot only.",
+  "inference": {
+    "enabled": false,
+    "ml_config_path": "configs/ml_config.local.json",
+    "feature_config_path": "configs/features_config.example.json",
+    "live_models_dir": "data/live_models",
+    "require_live_models_for_all_setups": false,
+    "notes": "Set enabled=true after running scripts/13_train_live_models.py and scripts/13_validate_live_models.py. Or pass --enable-inference to the router for a one-off smoke test."
+  },
+  "dxy": {
+    "enabled": true,
+    "fail_if_missing": false,
+    "component_symbol_map": {
+      "EURUSD": "EURUSD",
+      "USDJPY": "USDJPY",
+      "GBPUSD": "GBPUSD",
+      "USDCAD": "USDCAD",
+      "USDSEK": "USDSEK",
+      "USDCHF": "USDCHF"
+    }
+  }
 }

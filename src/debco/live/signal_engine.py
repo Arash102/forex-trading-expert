@@ -64,18 +64,26 @@ def _to_optional_float(value: Any) -> float | None:
 
 
 class LiveSignalEngine:
-    """Dry-run signal engine for v0.1.13a.
+    """Runtime signal engine for dry-run and live-inference modes.
 
-    This class validates and tracks the 12 selected setups from live_execution_spec.json.
-    Full model/feature inference is intentionally not implemented here; the first live
-    milestone is new-bar timing, state, magic-number tracking, and chart event plumbing.
-    Use --inject-test-signal in the router only to verify marker/screenshot plumbing.
+    v0.1.13a validated timing/state/chart plumbing. v0.1.13b optionally
+    attaches a LiveInferenceEngine that applies setup candidate filters,
+    live model artifacts, and executable probability cutoffs. If inference is
+    disabled or artifacts are missing, decisions remain safe ``no_signal``.
     """
 
-    def __init__(self, live_spec: Mapping[str, Any], magic_numbers: Mapping[str, Any], *, dry_run: bool = True):
+    def __init__(
+        self,
+        live_spec: Mapping[str, Any],
+        magic_numbers: Mapping[str, Any],
+        *,
+        dry_run: bool = True,
+        inference_engine: Any | None = None,
+    ):
         self.live_spec = live_spec
         self.magic_numbers = {str(k): int(v) for k, v in magic_numbers.items()}
         self.dry_run = bool(dry_run)
+        self.inference_engine = inference_engine
         self.setups = self._build_setups()
 
     def _build_setups(self) -> list[SetupRuntimeSpec]:
@@ -116,6 +124,7 @@ class LiveSignalEngine:
         signal_bar_time_utc: str,
         decision_bar_time_utc: str,
         inject_test_signal: str | None = None,
+        feature_snapshot: Any | None = None,
     ) -> list[SignalDecision]:
         decisions: list[SignalDecision] = []
         for setup in self.setups_for_symbol(symbol):
@@ -137,6 +146,25 @@ class LiveSignalEngine:
                     )
                 )
                 continue
+            if self.inference_engine is not None:
+                res = self.inference_engine.evaluate(setup, feature_snapshot)
+                decisions.append(
+                    SignalDecision(
+                        symbol=setup.symbol,
+                        timeframe=timeframe,
+                        setup_id=setup.setup_id,
+                        side=setup.side,
+                        magic=setup.magic,
+                        signal_bar_time_utc=signal_bar_time_utc,
+                        decision_bar_time_utc=decision_bar_time_utc,
+                        action=res.action,
+                        reason=res.reason,
+                        probability=res.probability,
+                        threshold=res.threshold,
+                        dry_run=self.dry_run,
+                    )
+                )
+                continue
             decisions.append(
                 SignalDecision(
                     symbol=setup.symbol,
@@ -147,7 +175,7 @@ class LiveSignalEngine:
                     signal_bar_time_utc=signal_bar_time_utc,
                     decision_bar_time_utc=decision_bar_time_utc,
                     action="no_signal",
-                    reason="model_inference_not_enabled_in_v0_1_13a_dry_run_router",
+                    reason="model_inference_not_enabled",
                     probability=None,
                     threshold=setup.threshold,
                     dry_run=self.dry_run,
