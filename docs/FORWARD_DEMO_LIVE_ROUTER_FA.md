@@ -52,3 +52,44 @@ python scripts/12_forward_demo_router.py --live-config configs/live_router.examp
 ## محدودیت فعلی
 
 در v0.1.13a، inference واقعی مدل‌ها عمدا فعال نشده است. این نسخه زیرساخت timing/state/magic/chart-event را تثبیت می‌کند. مرحله بعد اتصال feature/model inference و سپس demo order execution است.
+
+## v0.1.13b — اتصال inference زنده
+
+در این مرحله router همچنان به صورت dry-run اجرا می‌شود و سفارش واقعی ارسال نمی‌کند، اما مسیر inference واقعی اضافه شده است:
+
+- ساخت feature زنده از کندل بسته‌شده M15؛
+- ساخت/merge کردن DXY معکوس برای featureهای market-relative؛
+- اعمال candidate filter همان setup inventory؛
+- بارگذاری مدل نهایی هر setup از `data/live_models/<setup_id>/`؛
+- تبدیل policyهای `top_percentile_by_fold` به cutoff ثابت قابل اجرای live؛
+- تولید `order_intent` فقط وقتی probability از cutoff عبور کند.
+
+### ترتیب اجرا
+
+ابتدا مدل‌های live را بسازید:
+
+```bash
+python scripts/13_train_live_models.py --ml-config configs/ml_config.local.json --live-spec data/final_strategy_report/live_execution_spec.json --models-dir data/live_models
+```
+
+بعد اعتبارسنجی کنید:
+
+```bash
+python scripts/13_validate_live_models.py --live-spec data/final_strategy_report/live_execution_spec.json --models-dir data/live_models
+```
+
+سپس router را در حالت inference dry-run اجرا کنید:
+
+```bash
+python scripts/12_forward_demo_router.py --live-config configs/live_router.example.json --once --enable-inference
+```
+
+در config پیش‌فرض، `inference.enabled=false` است تا router بدون مدل هم ایمن اجرا شود. برای smoke test می‌توان از `--enable-inference` استفاده کرد. برای اجرای مداوم بعدی، مقدار `inference.enabled` را در یک config محلی به `true` تغییر دهید.
+
+### نکته مهم درباره top-percentile
+
+در live نمی‌توان از top-percentile آینده استفاده کرد. بنابراین `13_train_live_models.py` برای setupهایی که policy آنها `top_percentile_by_fold` است، cutoff ثابت را از توزیع OOF همان setup محاسبه و در `artifact.json` ذخیره می‌کند. از این به بعد live router فقط با `live_probability_cutoff` کار می‌کند.
+
+### محدودیت این مرحله
+
+این مرحله هنوز order واقعی نمی‌زند. خروجی فقط signal/order-intent dry-run و chart event است. فعال‌سازی order واقعی باید در milestone بعدی و بعد از بررسی smoke test انجام شود.

@@ -1,41 +1,19 @@
 {
   "input_dir": "data/raw",
-  "output_dir": "data/features",
-  "symbols": [
-    "EURUSD",
-    "XAUUSD"
-  ],
-  "pip_size": {
-    "EURUSD": 0.0001,
-    "XAUUSD": 0.01
+  "output": {
+    "full_dir": "data/features/full",
+    "model_dir": "data/features/model"
   },
-  "sessions": {
+  "defaults": {
     "timezone": "UTC",
-    "definitions": {
-      "tokyo": {
-        "start": "00:00",
-        "end": "09:00"
-      },
-      "london": {
-        "start": "07:00",
-        "end": "16:00"
-      },
-      "new_york": {
-        "start": "12:00",
-        "end": "21:00"
-      }
-    }
-  },
-  "feature_engineering": {
-    "zigzag_depth": 10,
-    "zigzag_deviation_pct": 0.3,
     "fracdiff_order": 0.4,
     "fracdiff_window": 50,
     "atr_period": 14,
+    "atr_percentile_window": 240,
+    "session_volatility_window": 240,
     "rsi_period": 14,
     "rsi_slope_window": 5,
     "volume_ratio_window": 30,
-    "value_ratio_window": 30,
     "gmma_short_spans": [
       3,
       5,
@@ -59,10 +37,237 @@
     "market_momentum_lag": 20,
     "market_z_window": 20,
     "market_regime_vol_window": 120,
-    "market_regime_vol_quantile": 0.85
+    "market_regime_vol_quantile": 0.85,
+    "zigzag_depth": 10
+  },
+  "sessions": {
+    "timezone": "UTC",
+    "blocks": [
+      {
+        "name": "asia_pre_london",
+        "id": 1,
+        "start": "00:00",
+        "end": "07:00"
+      },
+      {
+        "name": "london_open",
+        "id": 2,
+        "start": "07:00",
+        "end": "09:00"
+      },
+      {
+        "name": "london_mid",
+        "id": 3,
+        "start": "09:00",
+        "end": "12:00"
+      },
+      {
+        "name": "overlap_early",
+        "id": 4,
+        "start": "12:00",
+        "end": "14:00"
+      },
+      {
+        "name": "overlap_late",
+        "id": 5,
+        "start": "14:00",
+        "end": "16:00"
+      },
+      {
+        "name": "ny_late",
+        "id": 6,
+        "start": "16:00",
+        "end": "21:00"
+      }
+    ],
+    "build_named_session_features": true,
+    "build_current_session_features": true
+  },
+  "symbols": {
+    "EURUSD": {
+      "enabled": true,
+      "pip_size": 0.0001,
+      "point_size": 1e-05,
+      "zigzag_deviation_pct": 0.13,
+      "h1_trend_spread_threshold_pips": 10,
+      "bias_thresholds": {
+        "prev_session_bias_pips": 50,
+        "day_bias_pips": 80
+      }
+    },
+    "XAUUSD": {
+      "enabled": true,
+      "pip_size": 0.01,
+      "point_size": 0.01,
+      "zigzag_deviation_pct": 0.8,
+      "h1_trend_spread_threshold_pips": 160,
+      "bias_thresholds": {
+        "prev_session_bias_pips": 600,
+        "day_bias_pips": 800
+      }
+    }
+  },
+  "model_features": {
+    "max_features_with_lags": 100,
+    "base_features": [
+      "distance_from_confirmed_zigzag_high_pips",
+      "distance_from_confirmed_zigzag_low_pips",
+      "fracdiff_price",
+      "log_return",
+      "return_1bar_pips",
+      "return_4bar_pips",
+      "atr_14_pips",
+      "volume_ratio",
+      "rsi",
+      "rsi_slope",
+      "gmma",
+      "gmma_distance",
+      "gmma_distance_slope",
+      "body_ratio",
+      "upper_wick_ratio",
+      "lower_wick_ratio",
+      "market_x",
+      "market_y",
+      "market_quadrant",
+      "market_regime",
+      "session_block_id",
+      "day_return_from_open_pips",
+      "day_range_so_far_pips",
+      "distance_from_day_high_so_far_pips",
+      "distance_from_day_low_so_far_pips",
+      "day_position_pct",
+      "prev_session_return_pips",
+      "prev_session_range_pips",
+      "prev_session_return_to_atr",
+      "prev_session_bias",
+      "day_return_to_atr",
+      "day_bias",
+      "h1_return_1h_pips",
+      "h1_return_4h_pips",
+      "h1_range_pips",
+      "h1_ema_spread_pips",
+      "h1_ema_fast_slope_3h_pips",
+      "h1_trend_direction",
+      "prev_day_range_pips",
+      "prev_day_return_pips",
+      "distance_from_prev_day_high_pips",
+      "distance_from_prev_day_low_pips",
+      "prev_day_position_pct",
+      "asia_range_pips",
+      "asia_return_pips",
+      "asia_range_percentile_60d",
+      "distance_from_asia_high_pips",
+      "distance_from_asia_low_pips",
+      "london_range_so_far_pips",
+      "london_expansion_vs_asia",
+      "true_range_pips",
+      "candle_range_pips",
+      "atr_percentile_240",
+      "atr_regime",
+      "session_volatility_percentile_240",
+      "bar_volatility_vs_atr",
+      "day_of_week",
+      "hour_of_day",
+      "spread_pips",
+      "dxy_inverse_return_1",
+      "dxy_inverse_return_4",
+      "dxy_inverse_zscore_20",
+      "current_session_range_so_far_pips",
+      "current_session_return_so_far_pips"
+    ],
+    "lags": {
+      "rsi": [
+        1,
+        4
+      ],
+      "rsi_slope": [
+        1,
+        4
+      ],
+      "gmma_distance": [
+        1,
+        4
+      ],
+      "gmma_distance_slope": [
+        1,
+        4
+      ],
+      "body_ratio": [
+        1,
+        4
+      ],
+      "log_return": [
+        1,
+        4
+      ],
+      "return_1bar_pips": [
+        1,
+        4
+      ],
+      "market_x": [
+        1,
+        4
+      ],
+      "market_y": [
+        1,
+        4
+      ],
+      "bar_volatility_vs_atr": [
+        1,
+        4
+      ],
+      "distance_from_confirmed_zigzag_high_pips": [
+        1
+      ],
+      "distance_from_confirmed_zigzag_low_pips": [
+        1
+      ],
+      "distance_from_day_high_so_far_pips": [
+        1
+      ],
+      "distance_from_day_low_so_far_pips": [
+        1
+      ],
+      "distance_from_asia_high_pips": [
+        1
+      ],
+      "distance_from_asia_low_pips": [
+        1
+      ],
+      "true_range_pips": [
+        1
+      ],
+      "candle_range_pips": [
+        1
+      ],
+      "atr_14_pips": [
+        1
+      ],
+      "atr_percentile_240": [
+        1
+      ],
+      "session_volatility_percentile_240": [
+        1
+      ],
+      "h1_return_1h_pips": [
+        1
+      ],
+      "h1_return_4h_pips": [
+        1
+      ],
+      "h1_ema_spread_pips": [
+        1
+      ],
+      "h1_ema_fast_slope_3h_pips": [
+        1
+      ],
+      "prev_session_return_pips": [
+        1
+      ]
+    }
   },
   "sanity": {
-    "essential_columns": [
+    "essential_full_columns": [
       "dxy_close",
       "dxy_inverse_close",
       "index_close",
@@ -70,14 +275,11 @@
       "market_y",
       "market_regime",
       "session_block_id",
-      "day_of_week",
-      "hour_of_day",
       "rsi",
       "atr_14_pips",
       "atr_regime",
       "gmma_distance",
       "gmma_distance_slope",
-      "gmma",
       "body_ratio",
       "h1_trend_direction",
       "distance_from_asia_high_pips",
@@ -86,7 +288,16 @@
       "session_volatility_percentile_240",
       "distance_from_confirmed_zigzag_high_pips",
       "distance_from_confirmed_zigzag_low_pips",
-      "day_return_from_open_pips"
+      "spread_pips"
+    ],
+    "essential_model_columns": [
+      "rsi",
+      "gmma_distance",
+      "market_x",
+      "market_y",
+      "session_block_id",
+      "atr_14_pips",
+      "spread_pips"
     ]
   }
 }
