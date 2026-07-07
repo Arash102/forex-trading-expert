@@ -29,6 +29,64 @@ def _normalize_utc_iso(value: Any) -> str:
     return ts.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def normalize_feature_config_for_live(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize feature config shapes commonly seen in local workspaces.
+
+    The historical feature builder expects a dict with:
+    defaults, symbols, sessions={timezone, blocks}, and model_features={...}.
+    Some local/live configs may contain sessions or model_features as raw lists.
+    Normalize those before calling the research feature builder so live inference
+    fails with clear errors instead of opaque list.get AttributeErrors.
+    """
+    if not isinstance(config, Mapping):
+        raise TypeError(f"Feature config must be a JSON object/dict, got {type(config).__name__}.")
+    cfg: dict[str, Any] = dict(config)
+
+    # Allow a wrapper object such as {"features": {...}} or
+    # {"feature_engineering": {...}} if it contains the actual feature config.
+    for key in ("features", "feature_config", "feature_engineering", "feature_builder"):
+        nested = cfg.get(key)
+        if isinstance(nested, Mapping) and ("symbols" in nested or "defaults" in nested or "model_features" in nested):
+            cfg = dict(nested)
+            break
+
+    sessions = cfg.get("sessions", {})
+    if isinstance(sessions, list):
+        cfg["sessions"] = {
+            "timezone": str(cfg.get("timezone", cfg.get("default_timezone", "UTC"))),
+            "blocks": sessions,
+            "build_named_session_features": True,
+            "build_current_session_features": True,
+        }
+    elif isinstance(sessions, Mapping):
+        sess = dict(sessions)
+        if "blocks" not in sess:
+            # If a dict-like session config exists without blocks, keep it valid.
+            sess.setdefault("blocks", [])
+        sess.setdefault("timezone", str(cfg.get("timezone", "UTC")))
+        cfg["sessions"] = sess
+    else:
+        cfg["sessions"] = {"timezone": "UTC", "blocks": []}
+
+    model_features = cfg.get("model_features", {})
+    if isinstance(model_features, list):
+        cfg["model_features"] = {
+            "base_features": model_features,
+            "lags": {},
+            "max_features_with_lags": max(100, len(model_features)),
+        }
+    elif isinstance(model_features, Mapping):
+        cfg["model_features"] = dict(model_features)
+    else:
+        cfg["model_features"] = {"base_features": [], "lags": {}, "max_features_with_lags": 100}
+
+    if not isinstance(cfg.get("symbols"), Mapping):
+        raise TypeError("Feature config must contain a 'symbols' object with EURUSD/XAUUSD settings.")
+    if not isinstance(cfg.get("defaults", {}), Mapping):
+        cfg["defaults"] = {}
+    return cfg
+
+
 def build_live_feature_snapshot(
     *,
     symbol: str,
@@ -45,6 +103,7 @@ def build_live_feature_snapshot(
     candle-close based and matches the historical research design.
     """
     symbol = str(symbol).upper()
+    feature_config = normalize_feature_config_for_live(feature_config)
     raw = rates_to_ohlc_frame(rates, symbol=symbol)
     if raw.empty:
         raise ValueError(f"No MT5 rates available for {symbol}.")

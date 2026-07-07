@@ -19,11 +19,24 @@ from .state_store import LiveStateStore
 
 
 class ForwardDemoRouter:
-    def __init__(self, live_config_path: str | Path, *, inject_test_signal: str | None = None, force_inference_enabled: bool | None = None):
+    def __init__(
+        self,
+        live_config_path: str | Path,
+        *,
+        inject_test_signal: str | None = None,
+        force_inference_enabled: bool | None = None,
+        force_demo_orders_enabled: bool | None = None,
+    ):
         self.live_config_path = Path(live_config_path)
         self.cfg = load_live_router_config(self.live_config_path)
         if force_inference_enabled is not None:
             self.cfg.setdefault("inference", {})["enabled"] = bool(force_inference_enabled)
+        if force_demo_orders_enabled:
+            execution = self.cfg.setdefault("execution", {})
+            execution["enable_orders"] = True
+            execution["dry_run"] = False
+            execution["demo_only"] = True
+            execution["runtime_demo_orders_confirmed"] = True
         self.paths = resolve_paths(self.live_config_path, self.cfg)
         self.spec = load_json(self.paths.live_execution_spec_path)
         issues = validate_router_bundle(self.cfg, self.spec)
@@ -40,6 +53,8 @@ class ForwardDemoRouter:
         self.executor = DryRunOrderExecutor(
             state=self.state,
             chart_event_dir=str(self.paths.chart_event_dir),
+            live_spec=self.spec,
+            execution_config=self.cfg.get("execution", {}),
             chart_config=self.cfg.get("chart_markers", {}),
         )
         self.inject_test_signal = inject_test_signal
@@ -113,6 +128,7 @@ class ForwardDemoRouter:
         )
         client.initialize()
         self.mt5_client = client
+        self.executor.attach_mt5_client(client)
         return client
 
     def _collect_dxy_frame(self, client: MT5DataClient, timeframe: str, count: int) -> Any:
@@ -193,6 +209,7 @@ class ForwardDemoRouter:
             "current_bar_time_utc": event.current_bar_time_utc,
             "decision_count": len(decisions),
             "created_order_intents": len(created),
+            "created_order_statuses": [x.get("status") for x in created],
             "status": "processed",
         }
 

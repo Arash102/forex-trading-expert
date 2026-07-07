@@ -130,4 +130,18 @@ def validate_router_bundle(live_cfg: Mapping[str, Any], spec: Mapping[str, Any])
     missing_symbols = spec_symbols.difference(configured_symbols)
     if missing_symbols:
         issues.append(f"live config symbols missing symbols used by spec: {sorted(missing_symbols)}")
+
+    execution = live_cfg.get("execution", {}) or {}
+    dry_run = bool(execution.get("dry_run", True))
+    enable_orders = bool(execution.get("enable_orders", False))
+    demo_only = bool(execution.get("demo_only", True))
+    if enable_orders and dry_run:
+        issues.append("execution.enable_orders=true cannot be used while execution.dry_run=true")
+    if enable_orders and not demo_only:
+        issues.append("v0.1.13c only supports demo-only order execution; keep execution.demo_only=true")
+    risk = execution.get("risk_per_trade", spec.get("risk_per_trade"))
+    if risk is not None and not _is_finite_number(risk):
+        issues.append(f"execution.risk_per_trade must be finite, got {risk!r}")
+    if risk is not None and _is_finite_number(risk) and float(risk) <= 0:
+        issues.append(f"execution.risk_per_trade must be positive, got {risk!r}")
     return issues
