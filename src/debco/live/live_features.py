@@ -18,6 +18,7 @@ class LiveFeatureSnapshot:
     model_feature_row: pd.DataFrame
     raw_row: pd.Series
     missing_feature_columns: list[str]
+    candidate_feature_row: pd.DataFrame | None = None
 
 
 def _normalize_utc_iso(value: Any) -> str:
@@ -125,7 +126,8 @@ def build_live_feature_snapshot(
         candidates = model.copy()
     if candidates.empty:
         raise ValueError(f"No model feature row generated for {symbol} at {signal_bar_time_utc}.")
-    row = candidates.tail(1).copy()
+    candidate_row = candidates.tail(1).copy()
+    row = candidate_row.copy()
     missing: list[str] = []
     if required_feature_columns:
         for c in required_feature_columns:
@@ -140,4 +142,5 @@ def build_live_feature_snapshot(
         model_feature_row=row.reset_index(drop=True),
         raw_row=raw.tail(1).iloc[0],
         missing_feature_columns=missing,
+        candidate_feature_row=candidate_row.reset_index(drop=True),
     )

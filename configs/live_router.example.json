@@ -1,5 +1,5 @@
 {
-  "router_id": "debco_forward_demo_v0_1_13c",
+  "router_id": "debco_forward_demo_v0_1_13f",
   "mode": "dry_run",
   "live_execution_spec_path": "data/final_strategy_report/live_execution_spec.json",
   "state_db_path": "data/live_state/forward_demo.sqlite",
@@ -47,7 +47,10 @@
     "max_open_trades": 8,
     "max_trades_per_day": 8,
     "max_trades_per_symbol_per_day": 4,
-    "stop_after_daily_losses": 2
+    "stop_after_daily_losses": 2,
+    "max_open_trades_per_symbol": 4,
+    "max_open_trades_per_setup": 1,
+    "block_opposite_symbol_positions": true
   },
   "setup_magic_numbers": {
     "EUR_BUY_MOMENTUM_OVERLAP": 130101,
@@ -98,5 +101,22 @@
       "USDSEK": "USDSEK",
       "USDCHF": "USDCHF"
     }
+  },
+  "position_manager": {
+    "enabled": true,
+    "sync_open_positions": true,
+    "horizon_exit_enabled": true,
+    "mark_missing_positions_as_externally_closed": true
+  },
+  "reports": {
+    "enabled": true,
+    "output_dir": "data/live_reports",
+    "write_on_each_new_bar": true
+  },
+  "readiness": {
+    "demo_run_min_days": 30,
+    "require_live_models_validated": true,
+    "require_demo_only": true,
+    "require_dry_run_false_only_with_cli_flag": true
   }
 }

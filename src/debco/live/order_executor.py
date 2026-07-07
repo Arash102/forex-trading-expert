@@ -345,6 +345,27 @@ class DemoOrderExecutor:
             order_payload["status"] = f"blocked_{can_reason}"
 
         order_id = self.state.insert_order(order_payload)
+        if order_payload.get("status") == "demo_order_sent" and order_payload.get("ticket") is not None:
+            self.state.upsert_position(
+                {
+                    "mt5_position_ticket": str(order_payload.get("ticket")),
+                    "order_id": order_id,
+                    "signal_id": signal_id,
+                    "symbol": decision.symbol,
+                    "setup_id": decision.setup_id,
+                    "side": decision.side,
+                    "magic": decision.magic,
+                    "volume": order_payload.get("volume"),
+                    "entry_price": order_payload.get("entry_price"),
+                    "sl_price": order_payload.get("sl_price"),
+                    "tp_price": order_payload.get("tp_price"),
+                    "signal_bar_time_utc": decision.signal_bar_time_utc,
+                    "decision_bar_time_utc": decision.decision_bar_time_utc,
+                    "horizon_bars": decision.horizon_bars,
+                    "status": "open",
+                    "raw": order_payload,
+                }
+            )
         event = build_entry_event(
             symbol=decision.symbol,
             setup_id=decision.setup_id,

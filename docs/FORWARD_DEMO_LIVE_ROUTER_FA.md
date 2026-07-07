@@ -165,3 +165,68 @@ python scripts/12_forward_demo_router.py --live-config configs/live_router.examp
 ```
 
 در حساب real، همین دستور باید block شود و order ارسال نکند.
+
+## v0.1.13d — Position manager و Horizon exit
+
+در این مرحله router فقط order باز نمی‌کند؛ بلکه positionهای باز مربوط به magic numberهای DEBCO را هم از MT5 می‌خواند و با SQLite تطبیق می‌دهد.
+
+اضافه‌شده‌ها:
+
+- جدول `positions` در SQLite؛
+- sync کردن positionهای باز MT5 براساس magic number؛
+- ثبت `ticket`، حجم، قیمت ورود، SL/TP، setup_id و horizon؛
+- تشخیص positionهایی که دیگر در MT5 نیستند و علامت‌گذاری به عنوان `externally_closed_or_tp_sl`؛
+- بستن position بعد از رسیدن به `horizon_bars` با order معکوس؛
+- تولید chart event خروج برای marker/screenshot.
+
+## v0.1.13e — Live guards و Daily report
+
+این مرحله guardهای عملیاتی قبل از ارسال order و گزارش روزانه را اضافه می‌کند.
+
+Guardهای اصلی:
+
+- `max_open_trades`؛
+- `max_open_trades_per_symbol`؛
+- `max_open_trades_per_setup`؛
+- `block_opposite_symbol_positions`؛
+- `max_trades_per_day`؛
+- `max_trades_per_symbol_per_day`؛
+- `stop_after_daily_losses`.
+
+گزارش‌های روزانه در مسیر زیر ساخته می‌شوند:
+
+```bash
+data/live_reports
+```
+
+فایل‌های خروجی:
+
+- `YYYY-MM-DD_signals.csv`
+- `YYYY-MM-DD_orders.csv`
+- `YYYY-MM-DD_positions.csv`
+- `YYYY-MM-DD_guards.csv`
+- `YYYY-MM-DD_chart_events.csv`
+- `YYYY-MM-DD_summary.json`
+
+## v0.1.13f — One-month demo readiness
+
+برای اجرای یک‌ماهه، از config local استفاده کن، نه example:
+
+```bash
+python scripts/14_create_live_router_local_config.py --from-config configs/live_router.example.json --to-config configs/live_router.local.json --risk-per-trade 0.01
+python scripts/15_validate_demo_readiness.py --live-config configs/live_router.local.json
+```
+
+اجرای supervised کوتاه:
+
+```bash
+python scripts/12_forward_demo_router.py --live-config configs/live_router.local.json --once --enable-inference
+```
+
+اجرای demo order واقعی فقط روی حساب demo و فقط با فلگ صریح:
+
+```bash
+python scripts/12_forward_demo_router.py --live-config configs/live_router.local.json --enable-inference --enable-demo-orders
+```
+
+نکته: `--inject-test-signal` فقط برای تست plumbing است و در اجرای واقعی یک‌ماهه نباید استفاده شود.

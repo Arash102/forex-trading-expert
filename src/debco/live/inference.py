@@ -65,7 +65,10 @@ class LiveInferenceEngine:
             artifact = self.models.load_artifact(setup.setup_id)
         except Exception as exc:
             return SetupInferenceResult(setup.setup_id, True, False, None, None, "no_signal", f"live_model_artifact_error:{type(exc).__name__}")
-        candidate_ok, candidate_reason = self._candidate_pass(setup, snapshot.model_feature_row)
+        candidate_row = getattr(snapshot, "candidate_feature_row", None)
+        if candidate_row is None:
+            candidate_row = snapshot.model_feature_row
+        candidate_ok, candidate_reason = self._candidate_pass(setup, candidate_row)
         if not candidate_ok:
             return SetupInferenceResult(setup.setup_id, True, False, None, artifact.live_probability_cutoff, "no_signal", candidate_reason)
         try:

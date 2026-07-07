@@ -9,10 +9,13 @@ from debco.utils.io import read_json
 
 from .config import load_json, load_live_router_config, resolve_paths, validate_router_bundle
 from .dxy import build_dxy_from_component_closes, rates_to_ohlc_frame
+from .guards import LiveGuardEngine
 from .inference import LiveInferenceEngine
 from .live_features import LiveFeatureSnapshot, build_live_feature_snapshot
 from .mt5_data import MT5ConnectionConfig, MT5DataClient, MT5NotAvailableError
 from .order_executor import DryRunOrderExecutor
+from .position_manager import LivePositionManager
+from .reporting import write_daily_report
 from .scheduler import BarEvent, choose_sleep_seconds, detect_new_bar, next_expected_bar_time
 from .signal_engine import LiveSignalEngine
 from .state_store import LiveStateStore
@@ -43,6 +46,8 @@ class ForwardDemoRouter:
         if issues:
             raise ValueError("Live router configuration/spec validation failed:\n- " + "\n- ".join(issues))
         self.state = LiveStateStore(self.paths.state_db_path)
+        self.guard_engine = LiveGuardEngine(self.state, self.cfg.get("safety", {}))
+        self.position_manager: LivePositionManager | None = None
         self.inference_engine = self._build_inference_engine()
         self.engine = LiveSignalEngine(
             self.spec,
@@ -129,6 +134,14 @@ class ForwardDemoRouter:
         client.initialize()
         self.mt5_client = client
         self.executor.attach_mt5_client(client)
+        self.position_manager = LivePositionManager(
+            state=self.state,
+            mt5_client=client,
+            setup_magic_numbers=self.cfg.get("setup_magic_numbers", {}),
+            execution_config=self.cfg.get("execution", {}),
+            chart_config=self.cfg.get("chart_markers", {}),
+            chart_event_dir=str(self.paths.chart_event_dir),
+        )
         return client
 
     def _collect_dxy_frame(self, client: MT5DataClient, timeframe: str, count: int) -> Any:
@@ -191,7 +204,20 @@ class ForwardDemoRouter:
             feature_snapshot=feature_snapshot,
         )
         created = []
+        guard_blocked = []
         for decision in decisions:
+            if decision.action == "enter":
+                guard = self.guard_engine.evaluate_pre_trade(decision)
+                self.state.insert_guard_event(guard.to_payload(decision))
+                if not guard.allowed:
+                    payload = decision.to_payload()
+                    payload["action"] = "blocked"
+                    payload["reason"] = "guard_" + guard.reason
+                    self.state.insert_signal(payload)
+                    blocked = {"status": "blocked_guard_" + guard.reason, "setup_id": decision.setup_id, "details": guard.details}
+                    guard_blocked.append(blocked)
+                    created.append(blocked)
+                    continue
             result = self.executor.handle_decision(decision)
             if result:
                 created.append(result)
@@ -201,7 +227,7 @@ class ForwardDemoRouter:
             closed_bar_time_utc=event.closed_bar_time_utc,
             current_bar_time_utc=event.current_bar_time_utc,
             status="processed",
-            raw={"decision_count": len(decisions), "created_order_intents": len(created)},
+            raw={"decision_count": len(decisions), "created_order_intents": len(created), "guard_blocked": len(guard_blocked)},
         )
         return {
             "symbol": event.symbol,
@@ -210,6 +236,7 @@ class ForwardDemoRouter:
             "decision_count": len(decisions),
             "created_order_intents": len(created),
             "created_order_statuses": [x.get("status") for x in created],
+            "guard_blocked": len(guard_blocked),
             "status": "processed",
         }
 
@@ -234,10 +261,24 @@ class ForwardDemoRouter:
             events[symbol] = event
             self.last_seen_current_bar[symbol] = event.current_bar_time
             self.next_bar_time[symbol] = next_expected_bar_time(event.current_bar_time, timeframe)
+        if events and self.position_manager is not None and bool((self.cfg.get("position_manager", {}) or {}).get("enabled", True)):
+            current_bar_times = {symbol: event.current_bar_time_utc for symbol, event in events.items()}
+            try:
+                pm_result = self.position_manager.manage(timeframe=timeframe, current_bar_times=current_bar_times)
+                out.append({"position_manager": pm_result.to_payload(), "status": "position_manager_processed"})
+            except Exception as exc:
+                out.append({"position_manager_error": repr(exc), "status": "position_manager_error"})
         dxy_frame = self._collect_dxy_frame(client, timeframe, bars) if events and self.inference_engine is not None else None
         for symbol, event in events.items():
             snapshot = self._build_feature_snapshot_safe(symbol=symbol, rates=symbol_rates[symbol], event=event, dxy_frame=dxy_frame)
             out.append(self.process_bar_event(event, feature_snapshot=snapshot))
+        if bool((self.cfg.get("reports", {}) or {}).get("enabled", False)):
+            try:
+                report_dir = str((self.cfg.get("reports", {}) or {}).get("output_dir", "data/live_reports"))
+                summary = write_daily_report(self.state, report_dir)
+                out.append({"daily_report": summary, "status": "daily_report_written"})
+            except Exception as exc:
+                out.append({"daily_report_error": repr(exc), "status": "daily_report_error"})
         return out
 
     def sleep_seconds(self) -> float:
