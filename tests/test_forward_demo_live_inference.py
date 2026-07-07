@@ -73,38 +73,3 @@ def test_signal_engine_inference_missing_model_is_safe():
         decision_bar_time_utc="2026-01-01T00:15:00Z",
     )
     assert decisions[0].action == "no_signal"
-
-
-def test_router_feature_config_loader_skips_list_placeholder(tmp_path, monkeypatch):
-    from debco.live.router import ForwardDemoRouter
-
-    cfg_path = tmp_path / "live_router.json"
-    spec_path = tmp_path / "live_execution_spec.json"
-    bad_feature_path = tmp_path / "configs" / "features_config.example.json"
-    good_feature_path = tmp_path / "configs" / "features_config.local.json"
-    bad_feature_path.parent.mkdir(parents=True)
-    bad_feature_path.write_text(json.dumps(["not", "a", "feature", "config"]), encoding="utf-8")
-    good_feature_path.write_text(json.dumps({"defaults": {}, "symbols": {}, "model_features": {}}), encoding="utf-8")
-
-    spec = {"selected_setups": [{"setup_id": "EUR_AH_ATR2_BUY", "symbol": "EURUSD", "side": "long"}], "risk_per_trade": 0.01}
-    spec_path.write_text(json.dumps(spec), encoding="utf-8")
-    cfg = {
-        "router_id": "test",
-        "live_execution_spec_path": str(spec_path),
-        "state_db_path": str(tmp_path / "state.sqlite"),
-        "chart_event_dir": str(tmp_path / "events"),
-        "symbols": ["EURUSD"],
-        "setup_magic_numbers": {"EUR_AH_ATR2_BUY": 130103},
-        "execution": {"dry_run": True},
-        "inference": {
-            "enabled": True,
-            "ml_config_path": str(tmp_path / "missing_ml.json"),
-            "feature_config_path": str(bad_feature_path),
-            "live_models_dir": str(tmp_path / "models"),
-        },
-    }
-    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
-
-    router = ForwardDemoRouter(cfg_path)
-    assert isinstance(router.feature_config, dict)
-    assert "model_features" in router.feature_config

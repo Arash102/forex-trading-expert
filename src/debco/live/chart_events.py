@@ -81,3 +81,41 @@ def build_entry_event(
         "screenshot_height": int(screenshot_height),
         "status": "pending",
     }
+
+
+def build_exit_event(
+    *,
+    symbol: str,
+    setup_id: str,
+    side: str,
+    magic: int,
+    event_time_utc: str,
+    price: float | None = None,
+    reason: str = "exit",
+    screenshot_enabled: bool = True,
+    screenshot_width: int = 1280,
+    screenshot_height: int = 720,
+) -> dict[str, Any]:
+    label = f"EXIT {setup_id} {reason}"
+    screenshot_name = ""
+    if screenshot_enabled:
+        screenshot_name = f"debco_{symbol}_{setup_id}_{event_time_utc.replace(':','').replace('-','').replace('Z','')}_exit.png"
+    return {
+        "event_id": str(uuid4()),
+        "event_type": "exit",
+        "symbol": symbol,
+        "setup_id": setup_id,
+        "side": side,
+        "magic": int(magic),
+        "event_time_utc": event_time_utc,
+        "price": price,
+        "marker_color": "red",
+        "marker_shape": "circle",
+        "label": label,
+        "screenshot": bool(screenshot_enabled),
+        "screenshot_name": screenshot_name,
+        "screenshot_width": int(screenshot_width),
+        "screenshot_height": int(screenshot_height),
+        "status": "pending",
+        "reason": reason,
+    }

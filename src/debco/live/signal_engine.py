@@ -173,6 +173,21 @@ class LiveSignalEngine:
     ) -> list[SignalDecision]:
         decisions: list[SignalDecision] = []
         for setup in self.setups_for_symbol(symbol):
+            if inject_test_signal and setup.setup_id != inject_test_signal:
+                decisions.append(
+                    self._decision_for_setup(
+                        setup,
+                        timeframe=timeframe,
+                        signal_bar_time_utc=signal_bar_time_utc,
+                        decision_bar_time_utc=decision_bar_time_utc,
+                        action="no_signal",
+                        reason="suppressed_by_inject_test_signal",
+                        probability=None,
+                        threshold=setup.threshold,
+                        dry_run=True,
+                    )
+                )
+                continue
             if inject_test_signal and setup.setup_id == inject_test_signal:
                 decisions.append(
                     self._decision_for_setup(
