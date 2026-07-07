@@ -29,7 +29,7 @@ Router از روش event-aware polling استفاده می‌کند:
 
 ## MQL helper
 
-فایل `mql5/DEBCO_ChartEventHelper.mq5` را در MT5 داخل مسیر Experts قرار بده و روی چارت EURUSD و XAUUSD اجرا کن. این helper فایل‌های `.cmd` را می‌خواند، دایره سبز entry و نام setup را روی چارت می‌گذارد و screenshot می‌گیرد.
+فایل `mql5/DEBCO_ChartEventHelper.mq5` را در MT5 داخل مسیر Experts قرار بده و روی چارت EURUSD و XAUUSD اجرا کن. این helper فایل‌های `.txt` را می‌خواند، دایره سبز entry و نام setup را روی چارت می‌گذارد و screenshot می‌گیرد.
 
 ## اجرای اعتبارسنجی
 

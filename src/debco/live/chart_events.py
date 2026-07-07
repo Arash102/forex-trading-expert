@@ -16,9 +16,9 @@ def safe_text(value: Any) -> str:
 
 
 def write_chart_event_files(event_dir: str | Path, event: Mapping[str, Any]) -> dict[str, Path]:
-    """Write audit JSON and a simple .cmd file for the MQL chart helper.
+    """Write audit JSON and a simple .txt file for the MQL chart helper.
 
-    The .cmd format is semicolon separated because the MQL helper deliberately avoids
+    The .txt format is semicolon separated because the MQL helper deliberately avoids
     strategy logic and JSON parsing. It only draws markers and screenshots.
     """
     out_dir = Path(event_dir)
@@ -26,7 +26,7 @@ def write_chart_event_files(event_dir: str | Path, event: Mapping[str, Any]) -> 
     event_id = safe_text(event.get("event_id") or uuid4())
     base = f"{now_token()}_{safe_text(event.get('symbol'))}_{safe_text(event.get('setup_id'))}_{event_id}"
     json_path = out_dir / f"{base}.json"
-    cmd_path = out_dir / f"{base}.cmd"
+    cmd_path = out_dir / f"{base}.txt"
     payload = dict(event)
     payload["event_id"] = event_id
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
