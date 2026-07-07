@@ -72,3 +72,40 @@ class MT5DataClient:
         if rates is None:
             raise RuntimeError(f"copy_rates_from_pos failed for {symbol} {timeframe}: {mt5.last_error()}")
         return rates
+
+    def account_info(self):  # pragma: no cover - requires MT5 terminal
+        mt5 = self.mt5 or self.import_mt5()
+        info = mt5.account_info()
+        if info is None:
+            raise RuntimeError(f"mt5.account_info failed: {mt5.last_error()}")
+        return info
+
+    def symbol_info(self, symbol: str):  # pragma: no cover - requires MT5 terminal
+        mt5 = self.mt5 or self.import_mt5()
+        info = mt5.symbol_info(symbol)
+        if info is None:
+            # Try selecting the symbol before failing.
+            if hasattr(mt5, "symbol_select"):
+                mt5.symbol_select(symbol, True)
+                info = mt5.symbol_info(symbol)
+        if info is None:
+            raise RuntimeError(f"mt5.symbol_info failed for {symbol}: {mt5.last_error()}")
+        return info
+
+    def symbol_info_tick(self, symbol: str):  # pragma: no cover - requires MT5 terminal
+        mt5 = self.mt5 or self.import_mt5()
+        tick = mt5.symbol_info_tick(symbol)
+        if tick is None:
+            raise RuntimeError(f"mt5.symbol_info_tick failed for {symbol}: {mt5.last_error()}")
+        return tick
+
+    def order_send(self, request: dict[str, Any]):  # pragma: no cover - requires MT5 terminal
+        mt5 = self.mt5 or self.import_mt5()
+        result = mt5.order_send(request)
+        if result is None:
+            raise RuntimeError(f"mt5.order_send returned None: {mt5.last_error()}; request={request}")
+        return result
+
+    def positions_get(self, **kwargs: Any):  # pragma: no cover - requires MT5 terminal
+        mt5 = self.mt5 or self.import_mt5()
+        return mt5.positions_get(**kwargs)

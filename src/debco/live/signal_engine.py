@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .config import selected_setup_ids_from_spec
+from .risk import parse_trade_profile_from_job
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,7 @@ class SetupRuntimeSpec:
     symbol: str
     side: str
     magic: int
+    job: str | None = None
     policy: str | None = None
     probability_column: str | None = None
     threshold: float | None = None
@@ -33,6 +35,10 @@ class SignalDecision:
     probability: float | None = None
     threshold: float | None = None
     dry_run: bool = True
+    job: str | None = None
+    tp_pips: float | None = None
+    sl_pips: float | None = None
+    horizon_bars: int | None = None
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -48,6 +54,10 @@ class SignalDecision:
             "probability": self.probability,
             "threshold": self.threshold,
             "dry_run": self.dry_run,
+            "job": self.job,
+            "tp_pips": self.tp_pips,
+            "sl_pips": self.sl_pips,
+            "horizon_bars": self.horizon_bars,
         }
 
 
@@ -99,6 +109,7 @@ class LiveSignalEngine:
                     symbol=str(row.get("symbol", "")).upper(),
                     side=str(row.get("side", "")).lower(),
                     magic=int(self.magic_numbers[sid]),
+                    job=str(row.get("job")) if row.get("job") is not None else None,
                     policy=str(row.get("policy")) if row.get("policy") is not None else None,
                     probability_column=str(row.get("probability_column")) if row.get("probability_column") is not None else None,
                     threshold=_to_optional_float(row.get("threshold")),
@@ -116,6 +127,40 @@ class LiveSignalEngine:
         sym = str(symbol).upper()
         return [s for s in self.setups if s.symbol == sym]
 
+
+    def _decision_for_setup(
+        self,
+        setup: SetupRuntimeSpec,
+        *,
+        timeframe: str,
+        signal_bar_time_utc: str,
+        decision_bar_time_utc: str,
+        action: str,
+        reason: str,
+        probability: float | None,
+        threshold: float | None,
+        dry_run: bool,
+    ) -> SignalDecision:
+        profile = parse_trade_profile_from_job(setup.job)
+        return SignalDecision(
+            symbol=setup.symbol,
+            timeframe=timeframe,
+            setup_id=setup.setup_id,
+            side=setup.side,
+            magic=setup.magic,
+            signal_bar_time_utc=signal_bar_time_utc,
+            decision_bar_time_utc=decision_bar_time_utc,
+            action=action,
+            reason=reason,
+            probability=probability,
+            threshold=threshold,
+            dry_run=dry_run,
+            job=setup.job,
+            tp_pips=profile.tp_pips if profile is not None else None,
+            sl_pips=profile.sl_pips if profile is not None else None,
+            horizon_bars=profile.horizon_bars if profile is not None else None,
+        )
+
     def evaluate_closed_bar(
         self,
         *,
@@ -130,12 +175,9 @@ class LiveSignalEngine:
         for setup in self.setups_for_symbol(symbol):
             if inject_test_signal and setup.setup_id == inject_test_signal:
                 decisions.append(
-                    SignalDecision(
-                        symbol=setup.symbol,
+                    self._decision_for_setup(
+                        setup,
                         timeframe=timeframe,
-                        setup_id=setup.setup_id,
-                        side=setup.side,
-                        magic=setup.magic,
                         signal_bar_time_utc=signal_bar_time_utc,
                         decision_bar_time_utc=decision_bar_time_utc,
                         action="enter",
@@ -149,12 +191,9 @@ class LiveSignalEngine:
             if self.inference_engine is not None:
                 res = self.inference_engine.evaluate(setup, feature_snapshot)
                 decisions.append(
-                    SignalDecision(
-                        symbol=setup.symbol,
+                    self._decision_for_setup(
+                        setup,
                         timeframe=timeframe,
-                        setup_id=setup.setup_id,
-                        side=setup.side,
-                        magic=setup.magic,
                         signal_bar_time_utc=signal_bar_time_utc,
                         decision_bar_time_utc=decision_bar_time_utc,
                         action=res.action,
@@ -166,12 +205,9 @@ class LiveSignalEngine:
                 )
                 continue
             decisions.append(
-                SignalDecision(
-                    symbol=setup.symbol,
+                self._decision_for_setup(
+                    setup,
                     timeframe=timeframe,
-                    setup_id=setup.setup_id,
-                    side=setup.side,
-                    magic=setup.magic,
                     signal_bar_time_utc=signal_bar_time_utc,
                     decision_bar_time_utc=decision_bar_time_utc,
                     action="no_signal",

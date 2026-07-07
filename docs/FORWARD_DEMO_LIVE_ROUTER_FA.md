@@ -93,3 +93,75 @@ python scripts/12_forward_demo_router.py --live-config configs/live_router.examp
 ### محدودیت این مرحله
 
 این مرحله هنوز order واقعی نمی‌زند. خروجی فقط signal/order-intent dry-run و chart event است. فعال‌سازی order واقعی باید در milestone بعدی و بعد از بررسی smoke test انجام شود.
+
+## v0.1.13c — اجرای سفارش دمو با محافظ‌های سخت
+
+در این مرحله مسیر ارسال سفارش به MT5 اضافه می‌شود، اما همچنان پیش‌فرض سیستم `dry_run=true` است. سفارش واقعی فقط وقتی ارسال می‌شود که کاربر در همان اجرا فلگ صریح زیر را بدهد:
+
+```bash
+python scripts/12_forward_demo_router.py --live-config configs/live_router.example.json --once --enable-inference --enable-demo-orders
+```
+
+محافظ‌های اصلی:
+
+- `execution.enable_orders` باید true شود؛
+- `execution.dry_run` باید false شود؛
+- فلگ runtime یعنی `--enable-demo-orders` باید داده شود؛
+- `execution.demo_only=true` باید باقی بماند؛
+- حساب MT5 باید از نوع demo تشخیص داده شود؛
+- در غیر این صورت order به جای ارسال، با وضعیت blocked در SQLite ثبت می‌شود.
+
+### محاسبه حجم معامله
+
+برای هر signal، سیستم از `job` همان setup مقدارهای TP/SL/horizon را استخراج می‌کند. نمونه:
+
+```text
+EURUSD_fast_15_8_h16_long  -> TP=15 pip, SL=8 pip, horizon=16 کندل
+XAUUSD_runner_2200_1100_h40_long -> TP=2200 pip, SL=1100 pip, horizon=40 کندل
+```
+
+حجم معامله با اطلاعات خود MT5 محاسبه می‌شود:
+
+```text
+risk_amount = account_equity × risk_per_trade × risk_weight
+risk_per_lot = stop_distance / trade_tick_size × trade_tick_value
+volume = risk_amount / risk_per_lot
+```
+
+سپس volume بر اساس `volume_min`، `volume_max` و `volume_step` نماد در MT5 normalize می‌شود.
+
+### وزن ریسک XAU sell
+
+risk plan منتخب `xau_sell_50pct` از `live_execution_spec.json` خوانده می‌شود. بنابراین برای setupهای فروش XAUUSD، ریسک مؤثر نصف می‌شود:
+
+```text
+XAUUSD|short -> risk_weight = 0.5
+```
+
+مثلاً اگر ریسک پایه ۱٪ باشد، فروش‌های XAU با ۰.۵٪ equity محاسبه می‌شوند.
+
+### TP/SL و magic number
+
+در سفارش MT5:
+
+- نوع سفارش market است؛
+- برای long از ask و برای short از bid استفاده می‌شود؛
+- TP/SL همان لحظه order placement داخل request قرار می‌گیرد؛
+- magic number همان magic اختصاصی setup است؛
+- comment با prefix `DEBCO` و نام setup ثبت می‌شود.
+
+### اجرای امن smoke test
+
+ابتدا همیشه dry-run را تست کن:
+
+```bash
+python scripts/12_forward_demo_router.py --live-config configs/live_router.example.json --once --enable-inference --inject-test-signal EUR_AH_ATR2_BUY
+```
+
+بعد اگر حساب MT5 واقعاً demo بود، فقط برای تست دمو:
+
+```bash
+python scripts/12_forward_demo_router.py --live-config configs/live_router.example.json --once --enable-inference --enable-demo-orders --inject-test-signal EUR_AH_ATR2_BUY
+```
+
+در حساب real، همین دستور باید block شود و order ارسال نکند.

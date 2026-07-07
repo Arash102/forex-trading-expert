@@ -1,5 +1,5 @@
 {
-  "router_id": "debco_forward_demo_v0_1_13b",
+  "router_id": "debco_forward_demo_v0_1_13c",
   "mode": "dry_run",
   "live_execution_spec_path": "data/final_strategy_report/live_execution_spec.json",
   "state_db_path": "data/live_state/forward_demo.sqlite",
@@ -32,7 +32,15 @@
     "risk_per_trade": 0.01,
     "risk_plan": "xau_sell_50pct",
     "horizon_exit_enabled": true,
-    "one_signal_per_setup_per_bar": true
+    "one_signal_per_setup_per_bar": true,
+    "demo_only": true,
+    "require_demo_orders_cli_flag": true,
+    "deviation_points": 20,
+    "type_filling": "ORDER_FILLING_IOC",
+    "pip_size": {
+      "EURUSD": 0.0001,
+      "XAUUSD": 0.01
+    }
   },
   "safety": {
     "max_orders_per_bar_per_setup": 1,
@@ -70,7 +78,7 @@
     "level": "INFO",
     "print_heartbeat": true
   },
-  "notes": "v0.1.13b adds live feature/model inference wiring. Orders remain dry-run by default. Python owns timing, features, model inference, risk decision, state, and event files. MT5 is data/order transport. MQL helper is chart marker/screenshot only.",
+  "notes": "v0.1.13c adds explicit demo-only MT5 market order execution plumbing with lot sizing, TP/SL, setup magic numbers, and hard dry-run/demo guards. Python owns timing, features, model inference, risk decision, state, and order execution; MT5 remains data/order transport; MQL helper is chart marker/screenshot only.",
   "inference": {
     "enabled": false,
     "ml_config_path": "configs/ml_config.local.json",
