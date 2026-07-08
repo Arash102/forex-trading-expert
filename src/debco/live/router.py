@@ -296,19 +296,64 @@ class ForwardDemoRouter:
         )
 
     def run(self, *, once: bool = False) -> None:  # pragma: no cover - integration on user machine
+        runtime = self.cfg.get("runtime", {}) or {}
+        max_errors = int(runtime.get("max_consecutive_errors", 10))
+        retry_sleep = float(runtime.get("retry_sleep_seconds", 10.0))
+        reconnect_on_error = bool(runtime.get("reconnect_on_error", True))
+
+        consecutive_errors = 0
         client = self.connect_mt5()
+
         try:
             while True:
                 try:
                     results = self.poll_once(client)
+                    consecutive_errors = 0
                     if bool((self.cfg.get("logging", {}) or {}).get("print_heartbeat", True)):
                         print({"router_id": self.cfg.get("router_id"), "results": results})
-                except MT5NotAvailableError:
-                    raise
+
                 except Exception as exc:
-                    print({"router_id": self.cfg.get("router_id"), "error": repr(exc)})
+                    consecutive_errors += 1
+                    payload = {
+                        "router_id": self.cfg.get("router_id"),
+                        "runtime_error": repr(exc),
+                        "consecutive_errors": consecutive_errors,
+                        "max_consecutive_errors": max_errors,
+                    }
+                    print(payload)
+
+                    if once:
+                        raise
+
+                    if consecutive_errors >= max_errors:
+                        print({
+                            "router_id": self.cfg.get("router_id"),
+                            "status": "HALTED_MAX_CONSECUTIVE_RUNTIME_ERRORS",
+                            "consecutive_errors": consecutive_errors,
+                        })
+                        raise SystemExit(3)
+
+                    if reconnect_on_error:
+                        try:
+                            client.shutdown()
+                        except Exception:
+                            pass
+                        time.sleep(retry_sleep)
+                        try:
+                            client = self.connect_mt5()
+                            print({"router_id": self.cfg.get("router_id"), "status": "mt5_reconnected_after_runtime_error"})
+                        except Exception as reconnect_exc:
+                            print({"router_id": self.cfg.get("router_id"), "reconnect_error": repr(reconnect_exc)})
+                    else:
+                        time.sleep(retry_sleep)
+
+                    continue
+
                 if once:
                     break
+
                 time.sleep(self.sleep_seconds())
+
         finally:
             client.shutdown()
+

@@ -446,20 +446,57 @@ def add_session_context_features(out: pd.DataFrame, params: FeatureParams, confi
     out["distance_from_day_low_so_far_pips"] = safe_div(out["close"] - out["day_low_so_far"], params.pip_size)
     out["day_position_pct"] = safe_div(out["close"] - out["day_low_so_far"], out["day_high_so_far"] - out["day_low_so_far"])
 
-    block_table = out.groupby(["trade_date", "session_block_id"], as_index=False).agg(
+    # Previous-session context:
+    # The old implementation used groupby("trade_date").shift(1), which makes the
+    # first block of each trade_date NaN and can also mishandle outside-session
+    # blocks. For live trading, prev_session must mean the latest fully completed
+    # configured session before the current bar, in true chronological order.
+    configured_session_ids = [int(spec["id"]) for spec in config.get("sessions", {}).get("blocks", [])]
+    if configured_session_ids:
+        session_mask = out["session_block_id"].isin(configured_session_ids)
+    else:
+        session_mask = out["session_block_id"].gt(0)
+
+    session_table = out.loc[session_mask].groupby(["trade_date", "session_block_id"], as_index=False).agg(
+        session_start=("date", "first"),
+        session_end=("date", "last"),
         session_open=("open", "first"),
         session_high=("high", "max"),
         session_low=("low", "min"),
         session_close=("close", "last"),
         session_bars=("date", "count"),
-    ).sort_values(["trade_date", "session_block_id"])
-    block_table["prev_session_open"] = block_table.groupby("trade_date")["session_open"].shift(1)
-    block_table["prev_session_high"] = block_table.groupby("trade_date")["session_high"].shift(1)
-    block_table["prev_session_low"] = block_table.groupby("trade_date")["session_low"].shift(1)
-    block_table["prev_session_close"] = block_table.groupby("trade_date")["session_close"].shift(1)
-    block_table["prev_session_bars"] = block_table.groupby("trade_date")["session_bars"].shift(1)
-    keep = ["trade_date", "session_block_id", "prev_session_open", "prev_session_high", "prev_session_low", "prev_session_close", "prev_session_bars"]
-    out = out.merge(block_table[keep], on=["trade_date", "session_block_id"], how="left")
+    ).sort_values(["session_end", "session_block_id"])
+
+    if session_table.empty:
+        out["prev_session_open"] = np.nan
+        out["prev_session_high"] = np.nan
+        out["prev_session_low"] = np.nan
+        out["prev_session_close"] = np.nan
+        out["prev_session_bars"] = np.nan
+    else:
+        left = out[["date"]].copy()
+        left["_row_order"] = np.arange(len(left))
+        left = left.sort_values("date")
+
+        right = session_table[
+            ["session_end", "session_open", "session_high", "session_low", "session_close", "session_bars"]
+        ].sort_values("session_end")
+
+        prev = pd.merge_asof(
+            left,
+            right,
+            left_on="date",
+            right_on="session_end",
+            direction="backward",
+            allow_exact_matches=False,
+        ).sort_values("_row_order")
+
+        out["prev_session_open"] = prev["session_open"].to_numpy()
+        out["prev_session_high"] = prev["session_high"].to_numpy()
+        out["prev_session_low"] = prev["session_low"].to_numpy()
+        out["prev_session_close"] = prev["session_close"].to_numpy()
+        out["prev_session_bars"] = prev["session_bars"].to_numpy()
+
     out["prev_session_return_pips"] = safe_div(out["prev_session_close"] - out["prev_session_open"], params.pip_size)
     out["prev_session_range_pips"] = safe_div(out["prev_session_high"] - out["prev_session_low"], params.pip_size)
     prev_ret = pd.to_numeric(out["prev_session_return_pips"], errors="coerce")

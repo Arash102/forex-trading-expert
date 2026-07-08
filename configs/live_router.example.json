@@ -118,5 +118,15 @@
     "require_live_models_validated": true,
     "require_demo_only": true,
     "require_dry_run_false_only_with_cli_flag": true
+  },
+  "broker_time": {
+    "server_utc_offset_hours": 2,
+    "treat_mt5_timestamps_as_broker_time": true,
+    "timestamps_note": "MT5 bar timestamps are treated as broker-server time for training/live consistency. Broker server timezone observed as UTC+2."
+  },
+  "runtime": {
+    "max_consecutive_errors": 10,
+    "retry_sleep_seconds": 10,
+    "reconnect_on_error": true
   }
 }
