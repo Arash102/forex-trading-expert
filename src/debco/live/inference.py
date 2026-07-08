@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -46,13 +47,60 @@ class LiveInferenceEngine:
         spec = self.specs_by_id.get(setup.setup_id)
         if spec is None:
             return False, "setup_spec_missing_in_ml_config"
-        cfg = config_for_setup(self.ml_config, spec)
+
+        cfg = copy.deepcopy(config_for_setup(self.ml_config, spec))
+
+        # Historical candidate filters may include min_keep_ratio to protect
+        # backtests/training from tiny samples. Live inference evaluates one
+        # latest closed-bar row, so min_keep_ratio must not raise ValueError.
+        # A non-candidate live row should simply become candidate_filter_false.
+        cf = cfg.get("candidate_filter", {})
+        if isinstance(cf, dict):
+            cf.pop("min_keep_ratio", None)
+            cfg["candidate_filter"] = cf
+
         try:
             mask = candidate_mask_for_job(feature_row.copy(), symbol=setup.symbol, side=setup.side, config=cfg)
             ok = bool(pd.Series(mask).fillna(False).astype(bool).iloc[-1]) if len(mask) else False
             return ok, "candidate_filter_pass" if ok else "candidate_filter_false"
         except Exception as exc:
-            return False, f"candidate_filter_error:{type(exc).__name__}"
+            msg = str(exc).replace("\n", " ").replace("\r", " ").strip()
+            if len(msg) > 240:
+                msg = msg[:240] + "..."
+            return False, f"candidate_filter_error:{type(exc).__name__}:{msg}"
+    def _validate_model_feature_row(self, feature_row: pd.DataFrame, artifact: object) -> tuple[bool, str]:
+        if feature_row is None or feature_row.empty:
+            return False, "empty_feature_row"
+
+        missing: list[str] = []
+        bad: list[str] = []
+
+        latest = feature_row.iloc[-1]
+
+        for c in artifact.feature_columns:
+            if c not in feature_row.columns:
+                missing.append(c)
+                continue
+
+            try:
+                v = pd.to_numeric(pd.Series([latest[c]]), errors="coerce").iloc[0]
+                if pd.isna(v) or not math.isfinite(float(v)):
+                    bad.append(c)
+            except Exception:
+                bad.append(c)
+
+        if missing or bad:
+            parts = [
+                f"missing_count={len(missing)}",
+                f"bad_count={len(bad)}",
+            ]
+            if missing:
+                parts.append("missing=" + ",".join(missing[:8]))
+            if bad:
+                parts.append("bad=" + ",".join(bad[:8]))
+            return False, ";".join(parts)
+
+        return True, "model_features_valid"
 
     def evaluate(self, setup: SetupRuntimeSpec, snapshot: LiveFeatureSnapshot | None) -> SetupInferenceResult:
         if not self.enabled:
@@ -71,6 +119,18 @@ class LiveInferenceEngine:
         candidate_ok, candidate_reason = self._candidate_pass(setup, candidate_row)
         if not candidate_ok:
             return SetupInferenceResult(setup.setup_id, True, False, None, artifact.live_probability_cutoff, "no_signal", candidate_reason)
+        features_ok, feature_reason = self._validate_model_feature_row(snapshot.model_feature_row, artifact)
+        if not features_ok:
+            return SetupInferenceResult(
+                setup.setup_id,
+                True,
+                True,
+                None,
+                artifact.live_probability_cutoff,
+                "no_signal",
+                f"model_feature_invalid:{feature_reason}",
+            )
+
         try:
             probability, artifact = self.models.predict_probability(setup.setup_id, snapshot.model_feature_row)
         except Exception as exc:
