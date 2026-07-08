@@ -1,0 +1,51 @@
+{
+  "launch_id": "debco_demo_month_v0_1_14a",
+  "purpose": "Final static launch gate for one-month demo account execution only.",
+  "required": {
+    "order_mode": "demo_orders",
+    "symbols": ["EURUSD", "XAUUSD"],
+    "timeframe": "M15",
+    "setup_count": 12,
+    "require_core_12_setup_ids": true,
+    "require_live_models_for_all_setups": true,
+    "min_live_model_artifacts": 12,
+    "require_entry_exit_screenshots": true,
+    "demo_run_min_days": 30
+  },
+  "limits": {
+    "min_risk_per_trade": 0.0,
+    "max_risk_per_trade": 0.01,
+    "max_open_trades": 8,
+    "max_trades_per_day": 8,
+    "max_trades_per_symbol_per_day": 4,
+    "stop_after_daily_losses": 2,
+    "max_open_trades_per_symbol": 4,
+    "max_open_trades_per_setup": 1,
+    "max_orders_per_bar_per_setup": 1,
+    "max_consecutive_errors": 10
+  },
+  "account": {
+    "expected_account_type": "demo",
+    "server_must_contain_any": ["demo"],
+    "allowed_logins": []
+  },
+  "git": {
+    "enabled": true,
+    "require_clean_worktree": true,
+    "allowed_branches": ["main"],
+    "required_ref": ""
+  },
+  "acknowledgements": {
+    "strategy_frozen": true,
+    "features_frozen": true,
+    "models_frozen": true,
+    "demo_account_verified": true,
+    "manual_preflight_done": true,
+    "risk_acceptance": true
+  },
+  "notes": [
+    "Copy this file to configs/demo_month_launch_lock.local.json.",
+    "Set acknowledgement fields to true only after manual verification.",
+    "If your broker demo server name does not contain 'demo', either add its exact keyword or set server_must_contain_any to an empty list and use allowed_logins."
+  ]
+}

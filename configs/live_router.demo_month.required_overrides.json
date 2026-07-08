@@ -1,0 +1,60 @@
+{
+  "mode": "demo",
+  "symbols": ["EURUSD", "XAUUSD"],
+  "timeframe": "M15",
+  "mt5": {
+    "enabled": true,
+    "history_bars": 5000
+  },
+  "dxy": {
+    "enabled": true,
+    "fail_if_missing": true
+  },
+  "execution": {
+    "dry_run": false,
+    "enable_orders": true,
+    "demo_only": true,
+    "require_demo_orders_cli_flag": true,
+    "runtime_demo_orders_confirmed": false,
+    "risk_per_trade": 0.01,
+    "horizon_exit_enabled": true,
+    "one_signal_per_setup_per_bar": true
+  },
+  "safety": {
+    "max_open_trades": 8,
+    "max_trades_per_day": 8,
+    "max_trades_per_symbol_per_day": 4,
+    "stop_after_daily_losses": 2,
+    "max_open_trades_per_symbol": 4,
+    "max_open_trades_per_setup": 1,
+    "max_orders_per_bar_per_setup": 1,
+    "block_opposite_symbol_positions": true
+  },
+  "inference": {
+    "enabled": true,
+    "ml_config_path": "configs/ml_config.local.json",
+    "feature_config_path": "configs/features_config.local.json",
+    "live_models_dir": "data/live_models",
+    "require_live_models_for_all_setups": true
+  },
+  "position_manager": {
+    "enabled": true,
+    "sync_open_positions": true,
+    "horizon_exit_enabled": true
+  },
+  "chart_markers": {
+    "enabled": true,
+    "screenshot_on_entry": true,
+    "screenshot_on_exit": true
+  },
+  "reports": {
+    "enabled": true,
+    "write_on_each_new_bar": true,
+    "output_dir": "data/live_reports"
+  },
+  "runtime": {
+    "max_consecutive_errors": 10,
+    "retry_sleep_seconds": 10,
+    "reconnect_on_error": true
+  }
+}
