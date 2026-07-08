@@ -163,6 +163,7 @@ def run_startup_healthcheck(
 
                 candidate_error_count = 0
                 model_feature_invalid_count = 0
+                model_feature_invalid_examples = []
                 decision_count = 0
                 for symbol, event in events.items():
                     snapshot = router._build_feature_snapshot_safe(
@@ -189,10 +190,21 @@ def run_startup_healthcheck(
                             candidate_error_count += 1
                         if "model_feature_invalid" in reason:
                             model_feature_invalid_count += 1
+                            if len(model_feature_invalid_examples) < 20:
+                                model_feature_invalid_examples.append({
+                                    "symbol": str(symbol),
+                                    "setup_id": str(getattr(d, "setup_id", "")),
+                                    "side": str(getattr(d, "side", "")),
+                                    "action": str(getattr(d, "action", "")),
+                                    "closed_bar_time_utc": str(getattr(event, "closed_bar_time_utc", "")),
+                                    "decision_bar_time_utc": str(getattr(event, "current_bar_time_utc", "")),
+                                    "reason": reason,
+                                })
 
                 details["startup_decision_count"] = decision_count
                 details["startup_candidate_filter_error_count"] = candidate_error_count
                 details["startup_model_feature_invalid_count"] = model_feature_invalid_count
+                details["startup_model_feature_invalid_examples"] = model_feature_invalid_examples
 
                 if candidate_error_count:
                     issues.append(f"candidate_filter_error detected during startup: {candidate_error_count}")
